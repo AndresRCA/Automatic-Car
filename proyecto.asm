@@ -8,7 +8,7 @@ include <P16F877A.inc>
 ;* -RB4: left                                                                        					  	  *
 ;*                                                                                  					  	  *
 ;* Mode port:                                                                      					  		  *
-;* - RD0                                                                              					  	  *
+;* - RD0 (1 = CompMode, 0 = TrackMode)                                              					  	  *
 ;*                                                                                  					  	  *
 ;* Interrupciones usadas (Track Mode):                                                           			  *
 ;* - RB port change                                                             						 	  *
@@ -20,6 +20,9 @@ include <P16F877A.inc>
 ;* Notas:                                                             									  	  *
 ;* - recuerda prender el TMR1 en algun lado "bsf T1CON, 0" (probablemente al final de RB<7:4> Int)		  	  *
 ;* - pendiente de cuando manipular el registro timer para evitar comportamientos raros (en interrupciones)	  *
+;* - recuerda poner algo debajo de ChckRB5 en steppingLine, que comportamiento para los sensores laterales    *
+;* 	 seria bueno?                                                                                             *
+;* - steppingLine es un trabajo en progreso, el comportamiento puede ser discutido                        	  *
 ;**************************************************************************************************************
 
 ;**************************************** Variables *************************************************************
@@ -105,11 +108,11 @@ Main 	call medSpeed ; aqui probablemente se hacen conversiones A/D constantement
 
 ;************************************** Funciones INT Track Mode ************************************************
 
-TrackInt
+TrackInt		
 		btfsc PORTB, 6 ; reviso si el sensor de la derecha detecto el suelo (cuando detecta el sensor se deberia poner en 0)
 		goto ChckRB4
 		call turnLeft
-Keep1	btfss PORTB, 6 
+Keep1	btfss PORTB, 6
 		goto Keep1 ; Keep going 1
 		call stopTurning ; si RB6 = 1 entonces ya no tiene que girar a la izquierda
 		bcf INTCON, 0 ; bajo la bandera
@@ -180,7 +183,6 @@ CompMode
 		clrf speed
 		clrf isReverse
 		clrf timer
-		
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
@@ -235,20 +237,44 @@ turnLeft ; apagar el motor de la rueda derecha
 stopTurning ; ninguna rueda esta girando
 		; RD1 y RD0 = 0 o algo asi
 		return
+
+fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren tanto cosas inesperadas como momentos de seguridad al salirse de la linea negra
+		bcf T1CON, 0
+		clrf TMR1H
+		clrf TMR1L
+		clrf time
+		bcf isReverse, 0
+		return
 		
+steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
+		btfss PORTB, 7
+		goto ChckRB5 ; chequeo la parte trasera
+		bsf isReverse, 0 ; lo pongo en reversa
+		call fullSpeed
+		return
+Keep3	btfsc PORTB, 7
+		goto Keep3
+		return
+ChckRB5	btfss PORTB, 5
+		nop ; <-- Aqui se activo algun sensor de los lados
+		call fullSpeed ; ira al frente a toda velocidad
+Keep4	btfsc PORTB, 5
+		goto Keep4
+		return
 ;****************************************************************************************************************
 
 ;************************************** Funciones INT Comp Mode *************************************************
 
 RBChangeInt ; tomo las medidas necesarias para redirigir el auto
-		movf PORTB, 0
-		movwf PORTB_AUX ; necesario para salir de la interrupcion, o simplemente indico que PORTB debe ser 0 para que el carro salga de la linea
-		; aqui verifico los bits de RB para hacer giros
+		btfss T1CON, 0 ; verifico si el timer1 esta prendido, si lo esta entonces ocurrio la interrupcion RB mientras trataba de salir de una linea momentos antes
+		goto NotOn ; no esta prendido
+		; si esta prendido deshabilito todo eso  
+		call fullyDeactivateTMR1
+NotOn	call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
 		bsf T1CON, 0 ; prendo el TMR1
 		call medSeg
 		clrf timer ; limpio el timer para indicar el comienzo de la salida de la linea negra
 		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
-		; tal vez verificar aqui si la bandera realmente se limpio?
 		return
 
 TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
@@ -258,9 +284,8 @@ TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segun
 		goto Safe ; time = 8
 		call medSeg ; si no es 8 entonces espero el otro medio segundo
 		return
-Safe	clrf time
-		; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
-		bcf T1CON, 0 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
+Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
+		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
 		return
 
 ;****************************************************************************************************************
