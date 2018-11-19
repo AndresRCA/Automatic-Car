@@ -13,7 +13,7 @@ This mode is just the car following a black line with the help of sensors.
 
 In this mode the car will fight against other cars inside a square made of black tape, think of it like a sumo match.
 
---
+---
 
 ##Car model
 
