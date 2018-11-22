@@ -204,8 +204,8 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 seekingSpeed ; velocidad baja para la busqueda de un oponente
 		movlw d'64'
 		movwf speed ; esta linea no es necesaria pero lo dejo por legibilidad
-		movwf CPPR1L
-		movwf CPPR2L
+		movwf CCPR1L
+		movwf CCPR2L
 		return
 
 medSpeed ; media velocidad en los motores delanteros y traseros	
@@ -213,8 +213,8 @@ medSpeed ; media velocidad en los motores delanteros y traseros
 		movwf speed
 		btfsc isReverse, 0
 		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves, en este caso seria lo mismo...
-		movwf CPPR1L
-		movwf CPPR2L
+		movwf CCPR1L
+		movwf CCPR2L
 		return
 		
 fullSpeed ; maxima velocidad en los motores delanteros y traseros
@@ -222,8 +222,8 @@ fullSpeed ; maxima velocidad en los motores delanteros y traseros
 		movwf speed
 		btfsc isReverse, 0
 		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves
-		movwf CPPR1L
-		movwf CPPR2L
+		movwf CCPR1L
+		movwf CCPR2L
 		return
 		
 turnRight ; apagar el motor de la rueda derecha
