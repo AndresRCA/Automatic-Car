@@ -29,12 +29,15 @@ include <P16F877A.inc>
 
 W_AUX EQU 20h
 speed EQU 21h ; variable que guarda la velocidad actual del carro
-PORTB_AUX EQU 22h
+turn_speed EQU 22h ; variable que posee valores menores a speed, se obtiene de la division de speed
+PORTB_AUX EQU 23h
+division EQU 27h ; variable auxiliar para realizar divisiones
+cociente EQU 28h ; variable auxiliar para realizar divisiones
 
 ;************* Variables modo COMP *****************************
-timer EQU 23h
-isReverse EQU 24h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
-ADRESH_AUX EQU 25h ; valor necesario para tomar decisiones en la busqueda de un oponente, si la siguiente conversion es menor a la anterior (ADRESH_AUX), se gira al lado contrario (esto puede cambiar)
+timer EQU 24h
+isReverse EQU 25h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
+ADRESH_AUX EQU 26h ; valor necesario para tomar decisiones en la busqueda de un oponente, si la siguiente conversion es menor a la anterior (ADRESH_AUX), se gira al lado contrario (esto puede cambiar)
 ;***************************************************************
 
 ;****************************************************************************************************************
@@ -96,12 +99,14 @@ TrackMode
 
 ;****************************** Inicializacion de variables *****************************************************
 		clrf speed
+		clrf turn_speed
+		clrf cociente
 		clrf isReverse
 ;****************************************************************************************************************
 
 ;**************************************** Main Tracking Mode ****************************************************
 
-Main 	call medSpeed ; aqui probablemente se hacen conversiones A/D constantemente para decidir hacia donde girar y tomar decisiones respecto al resultado
+Main 	call medSpeed
 		goto Main
 		
 ;****************************************************************************************************************
@@ -203,7 +208,7 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 
 seekingSpeed ; velocidad baja para la busqueda de un oponente
 		movlw d'64'
-		movwf speed ; esta linea no es necesaria pero lo dejo por legibilidad
+		movwf speed
 		movwf CCPR1L
 		movwf CCPR2L
 		return
@@ -226,16 +231,33 @@ fullSpeed ; maxima velocidad en los motores delanteros y traseros
 		movwf CCPR2L
 		return
 		
-turnRight ; apagar el motor de la rueda derecha
-		; RD1 = 1 o algo asi que apague ese motor
+divideBy2 ; funcion que divide entre 2 el numero que ingresa a w previamente
+		clrf cociente
+		movwf division
+		movlw d'2'
+Divide	subwf division, 1
+		btfss STATUS, 0 ; cuando la resta de negativo entonces la division se completo
+		goto DivEnd
+		incf cociente, 1 ; incremento el valor del cociente por cada resta
+		goto Divide
+DivEnd	movf cociente, 0 ; muevo el cociente a w
+		return ; w al final da el cociente de la division		
+		
+turnRight ; disminuir la velocidad de las ruedas en la derecha
+		movf turn_speed, 0
+		movwf CCPR2L
 		return
 
-turnLeft ; apagar el motor de la rueda derecha
-		; RD0 = 1 o algo asi que apague ese motor
+turnLeft ; disminuir la velocidad de las ruedas en la izquierda
+		movf turn_speed, 0
+		movwf CCPR1L
 		return
 		
-stopTurning ; ninguna rueda esta girando
-		; RD1 y RD0 = 0 o algo asi
+stopTurning ; ambos lados tienen la misma velocidad
+		movf speed, 0
+		movwf turn_speed ; turn_speed = speed
+		movwf CCPR1L
+		movwf CCPR2L
 		return
 
 fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren tanto cosas inesperadas como momentos de seguridad al salirse de la linea negra
