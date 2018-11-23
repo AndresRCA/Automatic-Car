@@ -31,8 +31,8 @@ W_AUX EQU 20h
 speed EQU 21h ; variable que guarda la velocidad actual del carro
 turn_speed EQU 22h ; variable que posee valores menores a speed, se obtiene de la division de speed
 PORTB_AUX EQU 23h
-division EQU 27h ; variable auxiliar para realizar divisiones
-cociente EQU 28h ; variable auxiliar para realizar divisiones
+aux EQU 27h ; variable auxiliar para realizar operaciones matematicas
+cociente EQU 28h ; variable auxiliar para obtener el cociente en una division
 
 ;************* Variables modo COMP *****************************
 timer EQU 24h
@@ -239,9 +239,9 @@ fullSpeed ; maxima velocidad en los motores delanteros y traseros
 		
 divideBy2 ; funcion que divide entre 2 el numero que ingresa a w previamente
 		clrf cociente
-		movwf division
+		movwf aux
 		movlw d'2'
-Divide	subwf division, 1
+Divide	subwf aux, 1
 		btfss STATUS, 0 ; cuando la resta de negativo entonces la division se completo
 		goto DivEnd
 		incf cociente, 1 ; incremento el valor del cociente por cada resta
