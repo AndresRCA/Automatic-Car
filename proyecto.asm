@@ -116,6 +116,9 @@ Main 	call medSpeed
 TrackInt		
 		btfsc PORTB, 6 ; reviso si el sensor de la derecha detecto el suelo (cuando detecta el sensor se deberia poner en 0)
 		goto ChckRB4
+		; movf speed, 0
+		; call divideBy2
+		; movwf turn_speed
 		call turnLeft
 Keep1	btfss PORTB, 6
 		goto Keep1 ; Keep going 1
@@ -124,6 +127,9 @@ Keep1	btfss PORTB, 6
 		return
 ChckRB4 btfsc PORTB, 4
 		goto FlsAlrm ; falsa alarma, aparentemente ni el sensor de la izquierda ni el de la derecha se activaron, o se activo por cuestiones de imperfecciones de la linea
+		; movf speed, 0
+		; call divideBy2
+		; movwf turn_speed
 		call turnRight
 Keep2	btfss PORTB, 6
 		goto Keep2 ; Keep going 2
