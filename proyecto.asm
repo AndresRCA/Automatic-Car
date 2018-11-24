@@ -18,11 +18,11 @@ include <P16F877A.inc>
 ;* - RB port change                                                             						 	  *
 ;*                                                              										  	  *
 ;* Notas:                                                             									  	  *
-;* - recuerda prender el TMR1 en algun lado "bsf T1CON, 0" (probablemente al final de RB<7:4> Int)		  	  *
 ;* - pendiente de cuando manipular el registro timer para evitar comportamientos raros (en interrupciones)	  *
 ;* - recuerda poner algo debajo de ChckRB5 en steppingLine, que comportamiento para los sensores laterales    *
 ;* 	 seria bueno?                                                                                             *
 ;* - steppingLine es un trabajo en progreso, el comportamiento puede ser discutido                        	  *
+;* - las funciones para girar todavia no estan disenadas para ser usadas en retroceso               	  	  *
 ;**************************************************************************************************************
 
 ;**************************************** Variables *************************************************************
@@ -43,9 +43,7 @@ ADRESH_AUX EQU 26h ; valor necesario para tomar decisiones en la busqueda de un 
 ;****************************************************************************************************************
 
 org 0h
-		btfss PORTD, 0 ; asumiendo que RD0 es el que me dice en que modo esta
-		goto TrackMode
-		goto CompMode
+		goto CommonConfig
 ;********************************** Interrupcion ****************************************************************		
 org 4h
 		movwf W_AUX ; guardo el valor previo de W para no generar comportamientos raros
@@ -65,9 +63,8 @@ TrackM	call TrackInt
 		retfie	
 ;****************************************************************************************************************
 org 16h
-TrackMode
-;************************************** Configuracion Track *****************************************************		
-		
+CommonConfig
+;************************************** Configuracion Comun *****************************************************
 		;************* Configuracion PWM 1 y 2 *************************
 		; PWMduty cycle = (CCPR1L : CCP1CON(5,4))*Tosc*(Prescaler de TMR2)
 		; En nuestro caso: duty cycle de 100% es decir, CCPR1L = 255, hallo el periodo -> 1*PWMperiodo = 1020*(1/4*10^-6)*16 = 4.08*10^-3, 1020 es 11111111:00 => CCPR1L:CCP1CON(5,4) con CCPR1L = ADRESH
@@ -95,24 +92,28 @@ TrackMode
 		bsf CCP1CON, 2
 		bsf CCP2CON, 3 ; configuro el modulo CCP2 como PWM (11xx de bits 3-0)
 		bsf CCP2CON, 2
-		;***************************************************************
+		;***************************************************************	
+;****************************************************************************************************************
 
-;****************************** Inicializacion de variables *****************************************************
+;****************************** Inicializacion de variables comunes **********************************************
 		clrf speed
 		clrf turn_speed
 		clrf cociente
-		clrf isReverse
 ;****************************************************************************************************************
 
-;**************************************** Main Tracking Mode ****************************************************
+;****************************** Decision de modo ****************************************************************
+		btfss PORTD, 0 ; asumiendo que RD0 es el que me dice en que modo esta
+		goto TrackMode ; se que TrackMode esta justo abajo, pero dejo este goto para que sea mas legible el codigo
+		goto CompMode
+;****************************************************************************************************************
 
-Main 	call medSpeed
-		goto Main
-		
+TrackMode
+;**************************************** Main Tracking Mode ****************************************************
+		call medSpeed
+TMain 	goto TMain	
 ;****************************************************************************************************************
 
 ;************************************** Funciones INT Track Mode ************************************************
-
 TrackInt		
 		btfsc PORTB, 6 ; reviso si el sensor de la derecha detecto el suelo (cuando detecta el sensor se deberia poner en 0)
 		goto ChckRB4
@@ -136,7 +137,6 @@ Keep2	btfss PORTB, 6
 		call stopTurning ; si RB6 = 1 entonces ya no tiene que girar a la izquierda
 FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 		return
-
 ;****************************************************************************************************************
 
 ;***********************************************************************************************************************************************************
@@ -145,7 +145,7 @@ FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 
 CompMode
 ;************************************** Configuracion Comp ******************************************************
-		
+		bsf STATUS, 5
 		;************* Configuracion TMR1 ******************************
 		; configuro aqui el prescaler de T1CON (bits 5-4 => 11 = 1:8, 10 = 1:4, 01 = 1:2, 00 = 1:1)
 		bsf T1CON, 5
@@ -156,55 +156,55 @@ CompMode
 		; ** recuerda prender el TMR1 en algun lado "bsf T1CON, 0" **
 		;***************************************************************
 		
-		;************* Configuracion PWM 1 y 2 *************************
-		; PWMduty cycle = (CCPR1L : CCP1CON(5,4))*Tosc*(Prescaler de TMR2)
-		; En nuestro caso: duty cycle de 100% es decir, CCPR1L = 255, hallo el periodo -> 1*PWMperiodo = 1020*(1/4*10^-6)*16 = 4.08*10^-3, 1020 es 11111111:00 => CCPR1L:CCP1CON(5,4) con CCPR1L = ADRESH
-		clrf CCPR1L ; el duty sera de 0 al inicio
-		clrf CCPR2L
-		bsf STATUS, 5
-		movlw d'254' ; PWMperiodo = (PR2+1)*4*Tosc*(Prescaler de TMR2) => PR2 = (4.08*10^-3)/(10^-6 * 16) = 254
-		movwf PR2 ; el valor calculado de X se carga para el periodo de la onda, el valor de PR2, no se debe exceder de 255 o ser negativo en el calculo, si se excede se debe usar otro prescaler
-		
-		;************* Configuracion pines ********
-		bcf TRISC, 2 ; configuro pin ccp1 como salida
-		bcf TRISC, 1 ; configuro pin ccp2 como salida
-		; RB<7:4> son los sensores
-		;******************************************
-		
 		;************* Configuracion INT **********
-		bsf INTCON, 7 ; global
-		bsf INTCON, 3 ; RB Port Change Interrupt Enable bit RB<7:4>
 		bsf INTCON, 6 ; int perifericos
 		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
 		;******************************************
         
 		bcf STATUS, 5
-		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
-		bsf T2CON, 2 ; prendo el TMR2
-		bsf CCP1CON, 3 ; configuro el modulo CCP1 como PWM (11xx de bits 3-0)
-		bsf CCP1CON, 2
-		bsf CCP2CON, 3 ; configuro el modulo CCP2 como PWM (11xx de bits 3-0)
-		bsf CCP2CON, 2
-		;***************************************************************
 		bsf ADCON0, 0 ; enciendo el modulo conversor
-		
 ;****************************************************************************************************************
 
 ;****************************** Inicializacion de variables *****************************************************
-		clrf speed
 		clrf isReverse
 		clrf timer
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
-
-Main 	nop ; aqui probablemente se hacen conversiones A/D constantemente para decidir hacia donde girar y tomar decisiones respecto al resultado
-		goto Main
-		
+CMain 	nop ; aqui probablemente se hacen conversiones A/D constantemente para decidir hacia donde girar y tomar decisiones respecto al resultado
+		goto CMain		
 ;****************************************************************************************************************
 
-;************************************** Funciones ***************************************************************
+;************************************** Funciones INT Comp Mode *************************************************
+RBChangeInt ; tomo las medidas necesarias para redirigir el auto
+		btfss T1CON, 0 ; verifico si el timer1 esta prendido, si lo esta entonces ocurrio la interrupcion RB mientras trataba de salir de una linea momentos antes
+		goto NotOn ; no esta prendido
+		; si esta prendido deshabilito todo eso  
+		call fullyDeactivateTMR1
+NotOn	call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+		bsf T1CON, 0 ; prendo el TMR1
+		call medSeg
+		clrf timer ; limpio el timer para indicar el comienzo de la salida de la linea negra
+		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
+		return
 
+TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
+		bcf PIR1, 0 ; apago la bandera del TMR1 overflow
+		incf time, 1
+		btfsc time, 3 ; si time es 8, han pasado 4 segundos
+		goto Safe ; time = 8
+		call medSeg ; si no es 8 entonces espero el otro medio segundo
+		return
+Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
+		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
+		return
+;****************************************************************************************************************
+
+;***********************************************************************************************************************************************************
+;***********************************************************************************************************************************************************
+;***********************************************************************************************************************************************************
+
+;************************************** Funciones Generales *****************************************************
 medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		movlw b'11011100'
 		movwf TMR1L
@@ -289,33 +289,6 @@ ChckRB5	btfss PORTB, 5
 Keep4	btfsc PORTB, 5
 		goto Keep4
 		return
-;****************************************************************************************************************
-
-;************************************** Funciones INT Comp Mode *************************************************
-
-RBChangeInt ; tomo las medidas necesarias para redirigir el auto
-		btfss T1CON, 0 ; verifico si el timer1 esta prendido, si lo esta entonces ocurrio la interrupcion RB mientras trataba de salir de una linea momentos antes
-		goto NotOn ; no esta prendido
-		; si esta prendido deshabilito todo eso  
-		call fullyDeactivateTMR1
-NotOn	call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
-		bsf T1CON, 0 ; prendo el TMR1
-		call medSeg
-		clrf timer ; limpio el timer para indicar el comienzo de la salida de la linea negra
-		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
-		return
-
-TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
-		bcf PIR1, 0 ; apago la bandera del TMR1 overflow
-		incf time, 1
-		btfsc time, 3 ; si time es 8, han pasado 4 segundos
-		goto Safe ; time = 8
-		call medSeg ; si no es 8 entonces espero el otro medio segundo
-		return
-Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
-		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
-		return
-
 ;****************************************************************************************************************
 
 end
