@@ -54,7 +54,7 @@ org 4h
 		call RBChangeInt
 		movf W_AUX, 0 ; devuelvo el valor de W
 		retfie
-NotRB	nop ; aqui iria la interrupcion de tmr1 o una verificacion de bits si existe otra interrupcion habilitada
+NotRB	call TMR1Int
 		movf W_AUX, 0 ; devuelvo el valor de W
 		retfie
 
