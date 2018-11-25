@@ -23,6 +23,7 @@ include <P16F877A.inc>
 ;* 	 seria bueno?                                                                                             *
 ;* - steppingLine es un trabajo en progreso, el comportamiento puede ser discutido                        	  *
 ;* - las funciones para girar todavia no estan disenadas para ser usadas en retroceso               	  	  *
+;* - en TrackInt se asume que los sensores laterales estan fuera de la linea                        	  	  *
 ;**************************************************************************************************************
 
 ;**************************************** Variables *************************************************************
@@ -115,26 +116,28 @@ TMain 	goto TMain
 
 ;************************************** Funciones INT Track Mode ************************************************
 TrackInt		
-		btfsc PORTB, 6 ; reviso si el sensor de la derecha detecto el suelo (cuando detecta el sensor se deberia poner en 0)
+		btfss PORTB, 6 ; reviso si el sensor de la derecha detecto la linea negra, si la toco entonces el carro tiene que girar a la derecha
 		goto ChckRB4
 		; movf speed, 0
 		; call divideBy2
 		; movwf turn_speed
-		call turnLeft
-Keep1	btfss PORTB, 6
-		goto Keep1 ; Keep going 1
-		call stopTurning ; si RB6 = 1 entonces ya no tiene que girar a la izquierda
+		call turnRight
+Keep1	btfsc PORTB, 6
+		goto Keep1 ; Keep turning 1
+		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
+		call stopTurning ; si RB6 = 0 entonces ya no tiene que girar a la izquierda
 		bcf INTCON, 0 ; bajo la bandera
 		return
-ChckRB4 btfsc PORTB, 4
+ChckRB4 btfss PORTB, 4
 		goto FlsAlrm ; falsa alarma, aparentemente ni el sensor de la izquierda ni el de la derecha se activaron, o se activo por cuestiones de imperfecciones de la linea
 		; movf speed, 0
 		; call divideBy2
 		; movwf turn_speed
-		call turnRight
-Keep2	btfss PORTB, 6
-		goto Keep2 ; Keep going 2
-		call stopTurning ; si RB6 = 1 entonces ya no tiene que girar a la izquierda
+		call turnLeft
+Keep2	btfsc PORTB, 6
+		goto Keep2 ; Keep turning 2
+		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
+		call stopTurning ; si RB6 = 0 entonces ya no tiene que girar a la izquierda
 FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 		return
 ;****************************************************************************************************************
