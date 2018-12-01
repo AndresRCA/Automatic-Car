@@ -8,7 +8,7 @@ include <P16F877A.inc>
 ;* -RB4: left                                                                        					  	  *
 ;*                                                                                  					  	  *
 ;* Ultrasound sensor:                                                               					  	  *
-;* -RB0/INT: echo pin, este pin se pone en 0 cuando se recibe el eco del sensor        					  	  *
+;* -RB?: echo pin, este pin se pone en 0 cuando se recibe el eco del sensor        						  	  *
 ;* -RB1: Trig pin, este pin se usa para generar el pulso de 10 micro segundos para mandar una onda 		 	  *
 ;*                                                                                  					  	  *
 ;* Mode port:                                                                      					  		  *
@@ -20,7 +20,6 @@ include <P16F877A.inc>
 ;* Interrupciones usadas (Comp Mode):                                                           			  *
 ;* - TMR1                                                             									 	  *
 ;* - RB port change                                                             						 	  *
-;* - RB0 external interrupt                                                     						 	  *
 ;*                                                              										  	  *
 ;* Notas:                                                             									  	  *
 ;* - pendiente de cuando manipular el registro timer para evitar comportamientos raros (en interrupciones)	  *
@@ -170,11 +169,8 @@ CompMode
 		;***************************************************************
 		
 		;************* Configuracion INT **********
-		bsf INTCON, 6
 		bsf INTCON, 6 ; int perifericos
 		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
-		bsf INTCON, 4 ; RB0 external interrupt
-		bcf OPTION_REG, 6 ; RB0 interrumpe en flanco de bajada
 		;******************************************
         
 		bcf STATUS, 5
