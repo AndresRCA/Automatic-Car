@@ -86,6 +86,7 @@ CommonConfig
 		;************* Configuracion pines ********
 		bcf TRISC, 2 ; configuro pin ccp1 como salida
 		bcf TRISC, 1 ; configuro pin ccp2 como salida
+		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
 		; RB<7:4> son los sensores
 		;******************************************
 		
@@ -95,6 +96,7 @@ CommonConfig
 		;******************************************    
 		
 		bcf STATUS, 5
+		bcf PORTB, 1 ; lo pongo en 0 por si estaba en 1 antes (para el sensor)
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
 		bsf CCP1CON, 3 ; configuro el modulo CCP1 como PWM (11xx de bits 3-0)
@@ -157,9 +159,6 @@ FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 CompMode
 ;************************************** Configuracion Comp ******************************************************
 		bsf STATUS, 5
-		;************* Configuracion pines ********
-		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
-		;******************************************
 		;************* Configuracion TMR1 ******************************
 		; configuro aqui el prescaler de T1CON (bits 5-4 => 11 = 1:8, 10 = 1:4, 01 = 1:2, 00 = 1:1)
 		bsf T1CON, 5
