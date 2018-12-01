@@ -1,6 +1,6 @@
 list P = 16F877A
 include <P16F877A.inc>
-
+; 20 ms = 1*PRE*(256 - X) => PRE = 128 => X = 99,75 = 100, valor para un retraso de 20 ms
 org 0h
 		bsf STATUS, 5
 		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
