@@ -48,7 +48,9 @@ ADRESH_AUX EQU 26h ; valor necesario para tomar decisiones en la busqueda de un 
 ;****************************************************************************************************************
 
 org 0h
-		goto CommonConfig
+		btfss PORTD, 0 ; asumiendo que RD0 es el que me dice en que modo esta
+		goto TrackMode
+		goto CompMode
 ;********************************** Interrupcion ****************************************************************		
 org 4h
 		movwf W_AUX ; guardo el valor previo de W para no generar comportamientos raros
@@ -68,8 +70,8 @@ TrackM	call TrackInt
 		retfie	
 ;****************************************************************************************************************
 org 16h
-CommonConfig
-;************************************** Configuracion Comun *****************************************************
+TrackMode
+;************************************** Configuracion Track Mode ************************************************
 		movf PORTB, 0 ; leo PORTB para poder bajar la bandera de RB port change por si se encuentra en 1 
 		bcf INTCON, 0 ; bajo la bandera RBIF
 		
@@ -85,7 +87,6 @@ CommonConfig
 		;************* Configuracion pines ********
 		bcf TRISC, 2 ; configuro pin ccp1 como salida
 		bcf TRISC, 1 ; configuro pin ccp2 como salida
-		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
 		; RB<7:4> son los sensores
 		;******************************************
 		
@@ -95,7 +96,6 @@ CommonConfig
 		;******************************************    
 		
 		bcf STATUS, 5
-		bcf PORTB, 1 ; lo pongo en 0 por si estaba en 1 antes (para el sensor)
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
 		bsf CCP1CON, 3 ; configuro el modulo CCP1 como PWM (11xx de bits 3-0)
@@ -105,19 +105,12 @@ CommonConfig
 		;***************************************************************	
 ;****************************************************************************************************************
 
-;****************************** Inicializacion de variables comunes **********************************************
+;****************************** Inicializacion de variables ******************************************************
 		clrf speed
 		clrf turn_speed
 		clrf cociente
 ;****************************************************************************************************************
 
-;****************************** Decision de modo ****************************************************************
-		btfss PORTD, 0 ; asumiendo que RD0 es el que me dice en que modo esta
-		goto TrackMode ; se que TrackMode esta justo abajo, pero dejo este goto para que sea mas legible el codigo
-		goto CompMode
-;****************************************************************************************************************
-
-TrackMode
 ;**************************************** Main Tracking Mode ****************************************************
 		call medSpeed
 TMain 	goto TMain	
@@ -156,9 +149,34 @@ FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 ;***********************************************************************************************************************************************************
 
 CompMode
-;************************************** Configuracion Comp ******************************************************
+;************************************** Configuracion Comp Mode *************************************************
+		movf PORTB, 0 ; leo PORTB para poder bajar la bandera de RB port change por si se encuentra en 1 
+		bcf INTCON, 0 ; bajo la bandera RBIF
+		
+		;************* Configuracion PWM 1 y 2 *************************
+		; PWMduty cycle = (CCPR1L : CCP1CON(5,4))*Tosc*(Prescaler de TMR2)
+		; En nuestro caso: duty cycle de 100% es decir, CCPR1L = 255, hallo el periodo -> 1*PWMperiodo = 1020*(1/4*10^-6)*16 = 4.08*10^-3, 1020 es 11111111:00 => CCPR1L:CCP1CON(5,4) con CCPR1L = ADRESH
+		clrf CCPR1L ; el duty sera de 0 al inicio
+		clrf CCPR2L
 		bsf STATUS, 5
-		;************* Configuracion TMR1 ******************************
+		movlw d'254' ; PWMperiodo = (PR2+1)*4*Tosc*(Prescaler de TMR2) => PR2 = (4.08*10^-3)/(10^-6 * 16) = 254
+		movwf PR2 ; el valor calculado de X se carga para el periodo de la onda, el valor de PR2, no se debe exceder de 255 o ser negativo en el calculo, si se excede se debe usar otro prescaler
+		
+		;************* Configuracion pines ********
+		bcf TRISC, 2 ; configuro pin ccp1 como salida
+		bcf TRISC, 1 ; configuro pin ccp2 como salida
+		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
+		; RB<7:4> son los sensores
+		;******************************************
+		
+		;************* Configuracion INT **********
+		bsf INTCON, 7 ; global
+		bsf INTCON, 3 ; RB Port Change Interrupt Enable bit RB<7:4>
+		bsf INTCON, 6 ; int perifericos
+		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
+		;******************************************    
+		
+		;************* Configuracion TMR1 *********
 		; configuro aqui el prescaler de T1CON (bits 5-4 => 11 = 1:8, 10 = 1:4, 01 = 1:2, 00 = 1:1)
 		bsf T1CON, 5
 		bsf T1CON, 4
@@ -166,18 +184,25 @@ CompMode
 		clrf TMR1H
 		clrf TMR1L
 		; ** recuerda prender el TMR1 en algun lado "bsf T1CON, 0" **
+		;******************************************		
+		
+		bcf STATUS, 5
+		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
+		bsf T2CON, 2 ; prendo el TMR2
+		bsf CCP1CON, 3 ; configuro el modulo CCP1 como PWM (11xx de bits 3-0)
+		bsf CCP1CON, 2
+		bsf CCP2CON, 3 ; configuro el modulo CCP2 como PWM (11xx de bits 3-0)
+		bsf CCP2CON, 2
 		;***************************************************************
 		
-		;************* Configuracion INT **********
-		bsf INTCON, 6 ; int perifericos
-		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
-		;******************************************
-        
-		bcf STATUS, 5
+		bcf PORTB, 1 ; lo pongo en 0 por si estaba en 1 antes (para el sensor)
 		bsf ADCON0, 0 ; enciendo el modulo conversor
 ;****************************************************************************************************************
 
 ;****************************** Inicializacion de variables *****************************************************
+		clrf speed
+		clrf turn_speed
+		clrf cociente
 		clrf isReverse
 		clrf timer
 ;****************************************************************************************************************
