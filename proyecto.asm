@@ -7,6 +7,10 @@ include <P16F877A.inc>
 ;* -RB5: back                                                                          					  	  *
 ;* -RB4: left                                                                        					  	  *
 ;*                                                                                  					  	  *
+;* Ultrasound sensor:                                                               					  	  *
+;* -RB0/INT: echo pin, este pin se pone en 0 cuando se recibe el eco del sensor        					  	  *
+;* -RB1: Trig pin, este pin se usa para generar el pulso de 10 micro segundos para mandar una onda 		 	  *
+;*                                                                                  					  	  *
 ;* Mode port:                                                                      					  		  *
 ;* - RD0 (1 = CompMode, 0 = TrackMode)                                              					  	  *
 ;*                                                                                  					  	  *
@@ -16,6 +20,7 @@ include <P16F877A.inc>
 ;* Interrupciones usadas (Comp Mode):                                                           			  *
 ;* - TMR1                                                             									 	  *
 ;* - RB port change                                                             						 	  *
+;* - RB0 external interrupt                                                     						 	  *
 ;*                                                              										  	  *
 ;* Notas:                                                             									  	  *
 ;* - pendiente de cuando manipular el registro timer para evitar comportamientos raros (en interrupciones)	  *
@@ -66,6 +71,9 @@ TrackM	call TrackInt
 org 16h
 CommonConfig
 ;************************************** Configuracion Comun *****************************************************
+		movf PORTB, 0 ; leo PORTB para poder bajar la bandera de RB port change por si se encuentra en 1 
+		bcf INTCON, 0 ; bajo la bandera RBIF
+		
 		;************* Configuracion PWM 1 y 2 *************************
 		; PWMduty cycle = (CCPR1L : CCP1CON(5,4))*Tosc*(Prescaler de TMR2)
 		; En nuestro caso: duty cycle de 100% es decir, CCPR1L = 255, hallo el periodo -> 1*PWMperiodo = 1020*(1/4*10^-6)*16 = 4.08*10^-3, 1020 es 11111111:00 => CCPR1L:CCP1CON(5,4) con CCPR1L = ADRESH
@@ -84,8 +92,8 @@ CommonConfig
 		;************* Configuracion INT **********
 		bsf INTCON, 7 ; global
 		bsf INTCON, 3 ; RB Port Change Interrupt Enable bit RB<7:4>
-		;******************************************
-        
+		;******************************************    
+		
 		bcf STATUS, 5
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
@@ -149,6 +157,9 @@ FlsAlrm	bcf INTCON, 0 ; bajo la bandera
 CompMode
 ;************************************** Configuracion Comp ******************************************************
 		bsf STATUS, 5
+		;************* Configuracion pines ********
+		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
+		;******************************************
 		;************* Configuracion TMR1 ******************************
 		; configuro aqui el prescaler de T1CON (bits 5-4 => 11 = 1:8, 10 = 1:4, 01 = 1:2, 00 = 1:1)
 		bsf T1CON, 5
@@ -160,8 +171,11 @@ CompMode
 		;***************************************************************
 		
 		;************* Configuracion INT **********
+		bsf INTCON, 6
 		bsf INTCON, 6 ; int perifericos
 		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
+		bsf INTCON, 4 ; RB0 external interrupt
+		bcf OPTION_REG, 6 ; RB0 interrumpe en flanco de bajada
 		;******************************************
         
 		bcf STATUS, 5
