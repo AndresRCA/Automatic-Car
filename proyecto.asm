@@ -35,14 +35,12 @@ include <P16F877A.inc>
 W_AUX EQU 20h
 speed EQU 21h ; variable que guarda la velocidad actual del carro
 turn_speed EQU 22h ; variable que posee valores menores a speed, se obtiene de la division de speed
-PORTB_AUX EQU 23h
-aux EQU 27h ; variable auxiliar para realizar operaciones matematicas
-cociente EQU 28h ; variable auxiliar para obtener el cociente en una division
+aux EQU 23h ; variable auxiliar para realizar operaciones matematicas
+cociente EQU 24h ; variable auxiliar para obtener el cociente en una division
 
 ;************* Variables modo COMP *****************************
-timer EQU 24h
-isReverse EQU 25h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
-ADRESH_AUX EQU 26h ; valor necesario para tomar decisiones en la busqueda de un oponente, si la siguiente conversion es menor a la anterior (ADRESH_AUX), se gira al lado contrario (esto puede cambiar)
+timer EQU 25h
+isReverse EQU 26h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
 ;***************************************************************
 
 ;****************************************************************************************************************
