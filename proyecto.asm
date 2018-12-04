@@ -39,7 +39,7 @@ aux EQU 23h ; variable auxiliar para realizar operaciones matematicas
 cociente EQU 24h ; variable auxiliar para obtener el cociente en una division
 
 ;************* Variables modo COMP *****************************
-timer EQU 25h
+time EQU 25h
 isReverse EQU 26h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
 ;***************************************************************
 
@@ -202,7 +202,7 @@ CompMode
 		clrf turn_speed
 		clrf cociente
 		clrf isReverse
-		clrf timer
+		clrf time
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
@@ -219,7 +219,7 @@ RBChangeInt ; tomo las medidas necesarias para redirigir el auto
 NotOn	call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
 		bsf T1CON, 0 ; prendo el TMR1
 		call medSeg
-		clrf timer ; limpio el timer para indicar el comienzo de la salida de la linea negra
+		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
 		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
 		return
 
