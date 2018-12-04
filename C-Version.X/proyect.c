@@ -19,6 +19,7 @@
 
 #define ECHO RB2 //not decided yet
 #define TRIG RB1
+#define PROXIMITY_DISTANCE 5 // 5 => 11 cm with TMR0 prescaler = 128
 
 typedef unsigned char byte;
 volatile bit isReverse = FALSE;
@@ -27,9 +28,10 @@ volatile byte speed = 0;
 volatile byte turn_speed = 0;
 
 /* Configuration functions */
-void PWM_INIT(void);
-void INT_INIT(void);
-void TMR1_INIT(void);
+void inline PWM_INIT(void);
+void inline INT_INIT(void);
+void inline TMR1_INIT(void);
+void inline TMR0_INIT(void);
 
 /* Main functions */
 void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
@@ -39,11 +41,10 @@ void stopTurning(void);
 
 /* Comp functions */
 void medSeg(void);
-void activateUltraSound(void);
-void assessProximity(void);
+bit assessProximity(void);
 
 /* functions used only in interruptions */
-void steppingLine(void);
+void inline steppingLine(void);
 
 void main(void) {
     PORTB;
@@ -52,13 +53,19 @@ void main(void) {
     INT_INIT();
     if(MODE) {
         TMR1_INIT();
+        TMR0_INIT();
     }
     TRIG = 0; // in case it's on
     
     if(MODE) {
         /* Comp mode */
         while(1) {
-        
+            if(assessProximity()) {
+                /* a car is near */
+            }
+            else {
+                /* no car detected */
+            }
         }
     }
     else {
@@ -71,7 +78,7 @@ void main(void) {
     return;
 }
 
-void PWM_INIT(void) {
+void inline PWM_INIT(void) {
     CCPR1L = 0;
     CCPR2L = 0;
     PR2 = 254;
@@ -86,7 +93,7 @@ void PWM_INIT(void) {
     return;
 }
 
-void INT_INIT(void) {
+void inline INT_INIT(void) {
     GIE = 1;
     RBIE = 1;
     if(MODE) {
@@ -96,11 +103,18 @@ void INT_INIT(void) {
     return;
 }
 
-void TMR1_INIT(void) {
+void inline TMR1_INIT(void) {
     T1CKPS0 = 1; // TMR1 prescaler = 1:8
     T1CKPS1 = 1;
     TMR1 = 0;
     return;
+}
+
+void inline TMR0_INIT(void) {
+	PS0 = 0; //prescaler 128
+	PSA = 0; //prescaler assigned to TMR0
+	T0CS = 0; // TMR0 clock source = internal cycle clock
+	return;
 }
 
 void setSpeed(byte spd) {
@@ -131,12 +145,19 @@ void medSeg(void) {
     return;
 }
 
-void activateUltraSound(void) {
-    return;
-}
-
-void assessProximity(void) {
-    return;
+bit assessProximity(void) {
+	TRIG = 1;
+	__delay_us(10);
+	TRIG = 0;
+	while(!ECHO); // I wait for echo pin to go up
+	TMR0 = 0; // I start counting, with prescaler 128, the max value it will get is 182 (4 meters)
+	while(ECHO); // I wait for echo pin to go down
+	if(TMR0 <= PROXIMITY_DISTANCE){
+		return 1;
+	}
+	else {
+		return 0;
+	}
 }
 
 void fullyDeactivateTMR1(void) {
@@ -147,7 +168,7 @@ void fullyDeactivateTMR1(void) {
 }
 
 /* This function is subject of discussion */
-void steppingLine(void) {
+void inline steppingLine(void) {
     if(FRONT_SENSOR & LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
