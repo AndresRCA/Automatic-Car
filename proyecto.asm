@@ -216,7 +216,9 @@ RBChangeInt ; tomo las medidas necesarias para redirigir el auto
 		goto NotOn ; no esta prendido
 		; si esta prendido deshabilito todo eso  
 		call fullyDeactivateTMR1
-NotOn	call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+NotOn	bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
+		call stopTurning ; podria estar dando vueltas por el modo seeking
+		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
 		bsf T1CON, 0 ; prendo el TMR1
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
@@ -306,7 +308,6 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf TMR1H
 		clrf TMR1L
 		clrf time
-		bcf isReverse, 0
 		return
 		
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
