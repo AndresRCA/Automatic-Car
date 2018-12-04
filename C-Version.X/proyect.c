@@ -123,7 +123,7 @@ void stopTurning(void) {
 }
 
 void medSeg(void) {
-    TMR1 = 56331; // after setting TMR1 I wait for an interruption
+    TMR1 = 56331; // after setting TMR1, I wait for an interruption
     return;
 }
 
@@ -131,12 +131,65 @@ void fullyDeactivateTMR1(void) {
     TMR1ON = 0;
     TMR1 = 0;
     time = 0;
-    isReverse = FALSE;
     return;
 }
 
+/* This function is subject of discussion */
 void steppingLine(void) {
-    return;
+    switch(1) {
+        case FRONT_SENSOR & LEFT_SENSOR:
+            isReverse = TRUE;
+            setSpeed(FULL_SPEED);
+            //turn_speed = ??
+            turnRight();
+            __delay_ms(500);
+            stopTurning();
+            while(FRONT_SENSOR);
+            return;
+        
+        case FRONT_SENSOR & RIGHT_SENSOR:
+            isReverse = TRUE;
+            setSpeed(FULL_SPEED);
+            //turn_speed = ??
+            turnLeft();
+            __delay_ms(500);
+            stopTurning();
+            while(FRONT_SENSOR);
+            return;
+
+        case BACK_SENSOR & LEFT_SENSOR:
+            setSpeed(FULL_SPEED);
+            //turn_speed = ??
+            turnRight();
+            __delay_ms(500);
+            stopTurning();
+            while(BACK_SENSOR);
+            return;
+
+        case BACK_SENSOR & RIGHT_SENSOR:
+            setSpeed(FULL_SPEED);
+            //turn_speed = ??
+            turnLeft();
+            __delay_ms(500);
+            stopTurning();
+            while(BACK_SENSOR);
+            return;
+
+        case FRONT_SENSOR:
+            isReverse = TRUE;
+            setSpeed(FULL_SPEED);
+            while(FRONT_SENSOR);
+            return;
+
+        case BACK_SENSOR:
+            setSpeed(FULL_SPEED);
+            while(BACK_SENSOR);
+            return;
+
+        case default:
+            //I guess I'll just die
+            return;
+    }
 }
 
 void interrupt ISR(void){
@@ -146,6 +199,8 @@ void interrupt ISR(void){
             if(TMR1ON) {
                 fullyDeactivateTMR1();
             }
+            isReverse = FALSE; // just in case, can't know for sure what'll happen in a competition
+            stopTurning(); // in case the car was turning before getting knocked back
             steppingLine(); // here I check RB bits to take the proper measures
             TMR1ON = 1;
             medSeg();
