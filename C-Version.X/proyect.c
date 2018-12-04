@@ -36,7 +36,11 @@ void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
 void turnRight(void);
 void turnLeft(void);
 void stopTurning(void);
+
+/* Comp functions */
 void medSeg(void);
+void activateUltraSound(void);
+void assessProximity(void);
 
 /* functions used only in interruptions */
 void steppingLine(void);
@@ -127,6 +131,14 @@ void medSeg(void) {
     return;
 }
 
+void activateUltraSound(void) {
+    return;
+}
+
+void assessProximity(void) {
+    return;
+}
+
 void fullyDeactivateTMR1(void) {
     TMR1ON = 0;
     TMR1 = 0;
@@ -136,7 +148,56 @@ void fullyDeactivateTMR1(void) {
 
 /* This function is subject of discussion */
 void steppingLine(void) {
-    switch(1) {
+    if(FRONT_SENSOR & LEFT_SENSOR) {
+        isReverse = TRUE;
+        setSpeed(FULL_SPEED);
+        //turn_speed = ??
+        turnRight();
+        __delay_ms(500);
+        stopTurning();
+        while(FRONT_SENSOR);
+    }
+    else if(FRONT_SENSOR & RIGHT_SENSOR) {
+        isReverse = TRUE;
+        setSpeed(FULL_SPEED);
+        //turn_speed = ??
+        turnLeft();
+        __delay_ms(500);
+        stopTurning();
+        while(FRONT_SENSOR);
+    }
+    else if(BACK_SENSOR & LEFT_SENSOR) {
+        setSpeed(FULL_SPEED);
+        //turn_speed = ??
+        turnRight();
+        __delay_ms(500);
+        stopTurning();
+        while(BACK_SENSOR);
+    }
+    else if(BACK_SENSOR & RIGHT_SENSOR) {
+        setSpeed(FULL_SPEED);
+        //turn_speed = ??
+        turnLeft();
+        __delay_ms(500);
+        stopTurning();
+        while(BACK_SENSOR);
+    }
+    else if(FRONT_SENSOR) {
+        isReverse = TRUE;
+        setSpeed(FULL_SPEED);
+        while(FRONT_SENSOR);
+    }
+    else if(BACK_SENSOR) {
+        setSpeed(FULL_SPEED);
+        while(BACK_SENSOR);
+    }
+    else { //this else is not neccesary
+        //I guess I'll just die
+    }
+    return;
+            
+    /*switch(1) {
+        // constant expressions are required here... too bad
         case FRONT_SENSOR & LEFT_SENSOR:
             isReverse = TRUE;
             setSpeed(FULL_SPEED);
@@ -186,10 +247,10 @@ void steppingLine(void) {
             while(BACK_SENSOR);
             return;
 
-        case default:
+        default:
             //I guess I'll just die
             return;
-    }
+    }*/
 }
 
 void interrupt ISR(void){
