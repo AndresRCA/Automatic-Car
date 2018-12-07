@@ -41,7 +41,7 @@ void stopTurning(void);
 
 /* Comp functions */
 void medSeg(void);
-bit assessProximity(void);
+bit assessProximity(byte distance);
 
 /* functions used only in interruptions */
 void inline steppingLine(void);
@@ -60,20 +60,23 @@ void main(void) {
     if(MODE) {
         /* Comp mode */
         while(1) {
-            if(assessProximity()) {
+        	if(TMR1ON) continue;
+            if(assessProximity(PROXIMITY_DISTANCE)) {
                 /* a car is near */
+                stopTurning();
+                setSpeed(FULL_SPEED);
             }
             else {
                 /* no car detected */
+                setSpeed(SEEKING_SPEED);
+        		turnRight();
             }
         }
     }
     else {
         /* Tracking mode */
         setSpeed(MED_SPEED);
-        while(1) {
-
-        }
+        while(1);
     }
     return;
 }
@@ -145,14 +148,14 @@ void medSeg(void) {
     return;
 }
 
-bit assessProximity(void) {
+bit assessProximity(byte distance) {
 	TRIG = 1;
 	__delay_us(10);
 	TRIG = 0;
 	while(!ECHO); // I wait for echo pin to go up
 	TMR0 = 0; // I start counting, with prescaler 128, the max value it will get is 182 (4 meters)
 	while(ECHO); // I wait for echo pin to go down
-	if(TMR0 <= PROXIMITY_DISTANCE){
+	if(TMR0 <= distance){
 		return 1;
 	}
 	else {
@@ -297,7 +300,8 @@ void interrupt ISR(void){
         if(time == 8) { // if timer = 8, then 4 seconds have passed
             // here the car does its thing
             fullyDeactivateTMR1();
-        } 
+            isReverse = FALSE; //In case the car was going in reverse
+        }
         else {
             medSeg(); // I keep counting
         }
