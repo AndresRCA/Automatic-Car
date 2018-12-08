@@ -21,8 +21,22 @@
 #define TRIG RB1
 #define PROXIMITY_DISTANCE 5 // 5 => 11 cm with TMR0 prescaler = 128
 
-typedef unsigned char byte;
+//I want this definition to work
+/*typedef struct {
+    unsigned isReverse		:1;
+    unsigned isTurningRight	:1;
+    unsigned isTurningLeft	:1;
+    unsigned				:5;
+} CarState;
+volatile CarState car_state;
+car_stateisReverse = FALSE;
+car_state.isTurningLeft = FALSE;
+car_state.isTurningRight = FALSE;*/
 volatile bit isReverse = FALSE;
+volatile bit isTurningLeft = FALSE;
+volatile bit isTurningRight = FALSE;
+
+typedef unsigned char byte;
 volatile byte time = 0;
 volatile byte speed = 0;
 volatile byte turn_speed = 0;
@@ -60,16 +74,17 @@ void main(void) {
     if(MODE) {
         /* Comp mode */
         while(1) {
-        	if(TMR1ON) continue;
+        	if(TMR1ON) continue; // TMR1 is only on when escaping a black line
             if(assessProximity(PROXIMITY_DISTANCE)) {
                 /* a car is near */
-                stopTurning();
+                stopTurning(); // this function is redundant, setSpeed() accomplishes the same goal
                 setSpeed(FULL_SPEED);
             }
             else {
                 /* no car detected */
                 setSpeed(SEEKING_SPEED);
-        		turnRight();
+                if(isTurningRight) continue; //the car was already turning, no need to call turnRight(), this saves me the problem of setSpeed() and turnRight() constantly changing the value of CCPR2L back and forth
+        		turnRight(); //this will only be called after assessProximity returns 0
             }
         }
     }
@@ -129,17 +144,21 @@ void setSpeed(byte spd) {
 
 void turnRight(void) {
     CCPR2L = turn_speed;
+    isTurningRight = TRUE;
     return;
 }
 
 void turnLeft(void) {
     CCPR1L = turn_speed;
+    isTurningLeft = TRUE;
     return;
 }
 
 void stopTurning(void) {
     CCPR1L = speed;
     CCPR2L = speed;
+    isTurningRight = FALSE;
+    isTurningLeft = FALSE;
     return;
 }
 
@@ -172,7 +191,7 @@ void fullyDeactivateTMR1(void) {
 
 /* This function is subject of discussion */
 void inline steppingLine(void) {
-    if(FRONT_SENSOR & LEFT_SENSOR) {
+    if(FRONT_SENSOR && LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
@@ -181,7 +200,7 @@ void inline steppingLine(void) {
         stopTurning();
         while(FRONT_SENSOR);
     }
-    else if(FRONT_SENSOR & RIGHT_SENSOR) {
+    else if(FRONT_SENSOR && RIGHT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
@@ -190,7 +209,7 @@ void inline steppingLine(void) {
         stopTurning();
         while(FRONT_SENSOR);
     }
-    else if(BACK_SENSOR & LEFT_SENSOR) {
+    else if(BACK_SENSOR && LEFT_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnRight();
@@ -198,7 +217,7 @@ void inline steppingLine(void) {
         stopTurning();
         while(BACK_SENSOR);
     }
-    else if(BACK_SENSOR & RIGHT_SENSOR) {
+    else if(BACK_SENSOR && RIGHT_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnLeft();
@@ -222,7 +241,7 @@ void inline steppingLine(void) {
             
     /*switch(1) {
         // constant expressions are required here... too bad
-        case FRONT_SENSOR & LEFT_SENSOR:
+        case FRONT_SENSOR && LEFT_SENSOR:
             isReverse = TRUE;
             setSpeed(FULL_SPEED);
             //turn_speed = ??
@@ -232,7 +251,7 @@ void inline steppingLine(void) {
             while(FRONT_SENSOR);
             return;
         
-        case FRONT_SENSOR & RIGHT_SENSOR:
+        case FRONT_SENSOR && RIGHT_SENSOR:
             isReverse = TRUE;
             setSpeed(FULL_SPEED);
             //turn_speed = ??
@@ -242,7 +261,7 @@ void inline steppingLine(void) {
             while(FRONT_SENSOR);
             return;
 
-        case BACK_SENSOR & LEFT_SENSOR:
+        case BACK_SENSOR && LEFT_SENSOR:
             setSpeed(FULL_SPEED);
             //turn_speed = ??
             turnRight();
@@ -251,7 +270,7 @@ void inline steppingLine(void) {
             while(BACK_SENSOR);
             return;
 
-        case BACK_SENSOR & RIGHT_SENSOR:
+        case BACK_SENSOR && RIGHT_SENSOR:
             setSpeed(FULL_SPEED);
             //turn_speed = ??
             turnLeft();
