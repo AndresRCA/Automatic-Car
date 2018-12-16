@@ -29,7 +29,7 @@
     unsigned				:5;
 } CarState;
 volatile CarState car_state;
-car_stateisReverse = FALSE;
+car_state.isReverse = FALSE;
 car_state.isTurningLeft = FALSE;
 car_state.isTurningRight = FALSE;*/
 volatile bit isReverse = FALSE;
@@ -42,10 +42,10 @@ volatile byte speed = 0;
 volatile byte turn_speed = 0;
 
 /* Configuration functions */
-void inline PWM_INIT(void);
-void inline INT_INIT(void);
-void inline TMR1_INIT(void);
-void inline TMR0_INIT(void);
+inline void PWM_INIT(void);
+inline void INT_INIT(void);
+inline void TMR1_INIT(void);
+inline void TMR0_INIT(void);
 
 /* Main functions */
 void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
@@ -58,7 +58,7 @@ void medSeg(void);
 bit assessProximity(byte distance);
 
 /* functions used only in interruptions */
-void inline steppingLine(void);
+inline void steppingLine(void);
 
 void main(void) {
     PORTB;
@@ -96,7 +96,7 @@ void main(void) {
     return;
 }
 
-void inline PWM_INIT(void) {
+inline void PWM_INIT(void) {
     CCPR1L = 0;
     CCPR2L = 0;
     PR2 = 254;
@@ -111,7 +111,7 @@ void inline PWM_INIT(void) {
     return;
 }
 
-void inline INT_INIT(void) {
+inline void INT_INIT(void) {
     GIE = 1;
     RBIE = 1;
     if(MODE) {
@@ -121,14 +121,14 @@ void inline INT_INIT(void) {
     return;
 }
 
-void inline TMR1_INIT(void) {
+inline void TMR1_INIT(void) {
     T1CKPS0 = 1; // TMR1 prescaler = 1:8
     T1CKPS1 = 1;
     TMR1 = 0;
     return;
 }
 
-void inline TMR0_INIT(void) {
+inline void TMR0_INIT(void) {
 	PS0 = 0; //prescaler 128
 	PSA = 0; //prescaler assigned to TMR0
 	T0CS = 0; // TMR0 clock source = internal cycle clock
@@ -190,7 +190,7 @@ void fullyDeactivateTMR1(void) {
 }
 
 /* This function is subject of discussion */
-void inline steppingLine(void) {
+inline void steppingLine(void) {
     if(FRONT_SENSOR && LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
