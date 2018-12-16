@@ -50,6 +50,10 @@ CompMode
 		bcf TRISC, 1 ; configuro pin ccp2 como salida
 		bcf TRISB, 1 ; RB1 es el Trig del sensor de ultrasonido
 		; RB<7:4> son los sensores
+		bcf TRISD, 0 ; turning left led
+		bcf TRISD, 1 ; turning right led
+		bcf TRISD, 2 ; TMR1 led
+		bcf TRISD, 3 ; led de reversa
 		;******************************************
 		
 		;************* Configuracion INT **********
@@ -81,7 +85,10 @@ CompMode
 		bcf PORTB, 1 ; lo pongo en 0 por si estaba en 1 antes (para el sensor)
 		bsf ADCON0, 0 ; enciendo el modulo conversor
 ;****************************************************************************************************************
-
+		bcf PORTD, 0 ; apago los leds de turning
+		bcf PORTD, 1
+		bcf PORTD, 2 ; apago el led del TMR1
+		bcf PORTD, 3 ; apago el led de reversa
 ;****************************** Inicializacion de variables *****************************************************
 		clrf speed
 		clrf turn_speed
@@ -104,6 +111,7 @@ RBChangeInt ; tomo las medidas necesarias para redirigir el auto
 NotOn	bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
 		call stopTurning ; podria estar dando vueltas por el modo seeking
 		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+		bsf PORTD, 2 ; prendo el led de TMR1
 		bsf T1CON, 0 ; prendo el TMR1
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
@@ -121,10 +129,6 @@ Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea n
 		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
 		return
 ;****************************************************************************************************************
-
-;***********************************************************************************************************************************************************
-;***********************************************************************************************************************************************************
-;***********************************************************************************************************************************************************
 
 ;************************************** Funciones Generales *****************************************************
 medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
@@ -144,8 +148,8 @@ seekingSpeed ; velocidad baja para la busqueda de un oponente
 medSpeed ; media velocidad en los motores delanteros y traseros	
 		movlw d'128'
 		movwf speed
-		btfsc isReverse, 0
-		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves, en este caso seria lo mismo...
+		;btfsc isReverse, 0
+		;comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves, en este caso seria lo mismo...
 		movwf CCPR1L
 		movwf CCPR2L
 		return
@@ -153,8 +157,8 @@ medSpeed ; media velocidad en los motores delanteros y traseros
 fullSpeed ; maxima velocidad en los motores delanteros y traseros
 		movlw d'255'
 		movwf speed
-		btfsc isReverse, 0
-		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves
+		;btfsc isReverse, 0
+		;comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves
 		movwf CCPR1L
 		movwf CCPR2L
 		return
@@ -172,16 +176,20 @@ DivEnd	movf cociente, 0 ; muevo el cociente a w
 		return ; w al final da el cociente de la division		
 		
 turnRight ; disminuir la velocidad de las ruedas en la derecha
+		bsf PORTD, 1
 		movf turn_speed, 0
 		movwf CCPR2L
 		return
 
 turnLeft ; disminuir la velocidad de las ruedas en la izquierda
+		bsf PORTD, 0
 		movf turn_speed, 0
 		movwf CCPR1L
 		return
 		
 stopTurning ; ambos lados tienen la misma velocidad
+		bcf PORTD, 0
+		bcf PORTD, 1
 		movf speed, 0
 		movwf turn_speed ; turn_speed = speed
 		movwf CCPR1L
@@ -189,6 +197,7 @@ stopTurning ; ambos lados tienen la misma velocidad
 		return
 
 fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren tanto cosas inesperadas como momentos de seguridad al salirse de la linea negra
+		bcf PORTD,2 
 		bcf T1CON, 0
 		clrf TMR1H
 		clrf TMR1L
