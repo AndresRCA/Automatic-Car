@@ -24,7 +24,6 @@
 /* left and right sensor remain outside the line in tracking mode */
 #define LEFT_SENSOR RB4
 #define RIGHT_SENSOR RB6
-#define FRONT_SENSOR RB7
 #define BACK_SENSOR RB5
 
 #define ECHO RB2 //not decided yet
@@ -201,25 +200,12 @@ void fullyDeactivateTMR1(void) {
 
 /* This function is subject of discussion */
 inline void steppingLine(void) {
-    if(FRONT_SENSOR && LEFT_SENSOR) {
+    if(LEFT_SENSOR && RIGHT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
-        //turn_speed = ??
-        turnRight();
-        __delay_ms(500);
-        stopTurning();
-        while(FRONT_SENSOR);
+        while(LEFT_SENSOR || RIGHT_SENSOR);
     }
-    else if(FRONT_SENSOR && RIGHT_SENSOR) {
-        isReverse = TRUE;
-        setSpeed(FULL_SPEED);
-        //turn_speed = ??
-        turnLeft();
-        __delay_ms(500);
-        stopTurning();
-        while(FRONT_SENSOR);
-    }
-    else if(BACK_SENSOR && LEFT_SENSOR) {
+    else if(LEFT_SENSOR && BACK_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnRight();
@@ -227,7 +213,7 @@ inline void steppingLine(void) {
         stopTurning();
         while(BACK_SENSOR);
     }
-    else if(BACK_SENSOR && RIGHT_SENSOR) {
+    else if(RIGHT_SENSOR && BACK_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnLeft();
@@ -235,10 +221,23 @@ inline void steppingLine(void) {
         stopTurning();
         while(BACK_SENSOR);
     }
-    else if(FRONT_SENSOR) {
+    else if(LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
-        while(FRONT_SENSOR);
+        //turn_speed = ??
+        turnRight();
+        __delay_ms(500);
+        stopTurning();
+        while(LEFT_SENSOR);
+    }
+    else if(RIGHT_SENSOR) {
+        isReverse = TRUE;
+        setSpeed(FULL_SPEED);
+        //turn_speed = ??
+        turnLeft();
+        __delay_ms(500);
+        stopTurning();
+        while(RIGHT_SENSOR);
     }
     else if(BACK_SENSOR) {
         setSpeed(FULL_SPEED);
@@ -248,62 +247,6 @@ inline void steppingLine(void) {
         //I guess I'll just die
     }
     return;
-            
-    /*switch(1) {
-        // constant expressions are required here... too bad
-        case FRONT_SENSOR && LEFT_SENSOR:
-            isReverse = TRUE;
-            setSpeed(FULL_SPEED);
-            //turn_speed = ??
-            turnRight();
-            __delay_ms(500);
-            stopTurning();
-            while(FRONT_SENSOR);
-            return;
-        
-        case FRONT_SENSOR && RIGHT_SENSOR:
-            isReverse = TRUE;
-            setSpeed(FULL_SPEED);
-            //turn_speed = ??
-            turnLeft();
-            __delay_ms(500);
-            stopTurning();
-            while(FRONT_SENSOR);
-            return;
-
-        case BACK_SENSOR && LEFT_SENSOR:
-            setSpeed(FULL_SPEED);
-            //turn_speed = ??
-            turnRight();
-            __delay_ms(500);
-            stopTurning();
-            while(BACK_SENSOR);
-            return;
-
-        case BACK_SENSOR && RIGHT_SENSOR:
-            setSpeed(FULL_SPEED);
-            //turn_speed = ??
-            turnLeft();
-            __delay_ms(500);
-            stopTurning();
-            while(BACK_SENSOR);
-            return;
-
-        case FRONT_SENSOR:
-            isReverse = TRUE;
-            setSpeed(FULL_SPEED);
-            while(FRONT_SENSOR);
-            return;
-
-        case BACK_SENSOR:
-            setSpeed(FULL_SPEED);
-            while(BACK_SENSOR);
-            return;
-
-        default:
-            //I guess I'll just die
-            return;
-    }*/
 }
 
 void interrupt ISR(void){
