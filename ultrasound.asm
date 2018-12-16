@@ -1,5 +1,13 @@
 list P = 16F877A
 include <P16F877A.inc>
+
+;DIFERENCIAS CON MASTER:
+;TIENE PINES TRIG Y ECHO (UN RB DE RECEPECION PARA CONTAR LA DURACION DE UN PULSO)
+;USA TMR0 (PRESCALER 128)
+
+;NOTAS:
+;TMR0_ON Y OFF SON INNECESARIAS, PERO PODRIAN REDUCIR EL CONSUMO DE LA BATERIA
+
 ; 20 ms = 1*PRE*(256 - X) => PRE = 128 => X = 99,75 = 100, valor para un retraso de 20 ms
 org 0h
 		bsf STATUS, 5
@@ -51,13 +59,13 @@ delay10us
 
 TMR0_ON
 		bsf STATUS, 5
-		bcf OPTION_REG, 5 ; en esencia apago el TMR0
+		bcf OPTION_REG, 5 ; en esencia prendo el TMR0
 		bcf STATUS, 5
 		return
 		
 TMR0_OFF
 		bsf STATUS, 5
-		bsf OPTION_REG, 5 ; en esencia prendo el TMR0
+		bsf OPTION_REG, 5 ; en esencia apago el TMR0
 		bcf STATUS, 5
 		return
 		
