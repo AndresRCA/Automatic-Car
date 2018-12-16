@@ -1,6 +1,10 @@
 list P = 16F877A
 include <P16F877A.inc>
 
+;DIFERENCIAS CON MASTER:
+;USA TMR0 (AL IGUAL QUE ULTRASOUND)
+;LA FUNCTION TMR1Int (LA PARTE DE "SAFE")
+
 ;**************************************** Variables *************************************************************
 
 W_AUX EQU 20h
@@ -73,6 +77,12 @@ CompMode
 		; ** recuerda prender el TMR1 en algun lado "bsf T1CON, 0" **
 		;******************************************		
 		
+		;************* Configuracion TMR0 *********
+		bcf OPTION_REG, 0 ; prescaler 128 para cubrir la distancia maxima de 4 metros (TMR0 = 182) y evitar overflows
+		bcf OPTION_REG, 5 ; el tmr0 es temporizador
+		bcf OPTION_REG, 3 ; prescaler asignado a tmr0
+		;******************************************	
+		
 		bcf STATUS, 5
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
@@ -108,7 +118,8 @@ RBChangeInt ; tomo las medidas necesarias para redirigir el auto
 		goto NotOn ; no esta prendido
 		; si esta prendido deshabilito todo eso  
 		call fullyDeactivateTMR1
-NotOn	bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
+NotOn	bcf PORTD, 3 ; led de reversa
+		bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
 		call stopTurning ; podria estar dando vueltas por el modo seeking
 		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
 		bsf PORTD, 2 ; prendo el led de TMR1
@@ -127,6 +138,8 @@ TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segun
 		return
 Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
 		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
+		bcf PORTD, 3 ; led de reversa
+		bcf isReverse, 0
 		return
 ;****************************************************************************************************************
 
@@ -136,22 +149,6 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		movwf TMR1L
 		movlw b'00001011'
 		movwf TMR1H
-		return
-
-seekingSpeed ; velocidad baja para la busqueda de un oponente
-		movlw d'64'
-		movwf speed
-		movwf CCPR1L
-		movwf CCPR2L
-		return
-
-medSpeed ; media velocidad en los motores delanteros y traseros	
-		movlw d'128'
-		movwf speed
-		;btfsc isReverse, 0
-		;comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves, en este caso seria lo mismo...
-		movwf CCPR1L
-		movwf CCPR2L
 		return
 		
 fullSpeed ; maxima velocidad en los motores delanteros y traseros
@@ -202,23 +199,98 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf TMR1H
 		clrf TMR1L
 		clrf time
-		return
+		return	
 		
+;#define LEFT_SENSOR RB4
+;#define RIGHT_SENSOR RB6
+;#define BACK_SENSOR RB5		
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
-		btfss PORTB, 7
-		goto ChckRB5 ; chequeo la parte trasera
-		bsf isReverse, 0 ; lo pongo en reversa
+		btfsc PORTB, 4 ; LEFT_SENSOR && RIGHT_SENSOR
+		btfss PORTB, 6
+		goto Nxt1 ; siguiente condicion
+		; sensor izquierdo y derecho estan activados
+		bsf PORTD, 3 ; led de reversa
+		bsf isReverse, 0
 		call fullSpeed
+KP1		btfsc PORTB, 4
+		goto KP1
+		btfsc PORTB, 6
+		goto KP1
+		; aqui finalmente ni el sensor izquierda ni el derecho son 1
 		return
-Keep3	btfsc PORTB, 7
-		goto Keep3
+Nxt1	btfsc PORTB, 4 ; LEFT_SENSOR && BACK_SENSOR
+		btfss PORTB, 5
+		goto Nxt2
+		; sensor izquierdo y trasero estan activados
+		call fullSpeed
+		movf speed, 0
+		call divideBy2
+		movwf turn_speed
+		call turnRight
+		call delay2s
+		call stopTurning
+KP2		btfsc PORTB, 5
+		goto KP2
 		return
-ChckRB5	btfss PORTB, 5
-		nop ; <-- Aqui se activo algun sensor de los lados
-		call fullSpeed ; ira al frente a toda velocidad
-Keep4	btfsc PORTB, 5
-		goto Keep4
+Nxt2	btfsc PORTB, 6 ; RIGHT_SENSOR && BACK_SENSOR
+		btfss PORTB, 5
+		goto Nxt3
+		call fullSpeed
+		movf speed, 0
+		call divideBy2
+		movwf turn_speed
+		call turnLeft
+		call delay2s
+		call stopTurning
+KP3		btfsc PORTB, 5
+		goto KP3
+		return
+Nxt3	btfss PORTB, 4 ; LEFT_SENSOR
+		goto Nxt4
+		bsf PORTD, 3 ; led de reversa
+		bsf isReverse, 0
+		call fullSpeed
+		movf speed, 0
+		call divideBy2
+		movwf turn_speed
+		call turnRight
+		call delay2s
+		call stopTurning
+KP4		btfsc PORTB, 4
+		goto KP4
+		return
+Nxt4	btfss PORTB, 6 ; RIGHT_SENSOR
+		goto Nxt5
+		bsf PORTD, 3 ; led de reversa
+		bsf isReverse, 0
+		call fullSpeed
+		movf speed, 0
+		call divideBy2
+		movwf turn_speed
+		call turnLeft
+		call delay2s
+		call stopTurning
+KP5		btfsc PORTB, 6
+		goto KP5
+		return
+Nxt5	btfss PORTB, 5 ; BACK_SENSOR
+		return ; guess I'll die (the port change would be the only sensor that left the black line, or something like that, think of it like a null check)
+		call fullSpeed
+KP5		btfsc PORTB, 5
+		goto KP5
+		return
+
+; 30 ms = 1*PRE*(256 - X) => PRE = 128 => X = 21.625 = 22, valor para un retraso de 30 ms
+delay2s
+		movlw d'70' ; 30ms * 70 = 2.1s
+		movwf aux
+SrtDl	bcf INTCON, 2 ;apago la bandera del tmr0
+        movlw d'22' ; aproximadamente 30 ms
+        movwf TMR0
+Back    btfss INTCON, 2
+        goto Back
+        decfsz aux, 1
+		goto SrtDl
 		return
 ;****************************************************************************************************************
-
 end
