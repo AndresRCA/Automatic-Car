@@ -14,7 +14,7 @@ org 4h
 		call TrackInt
 		movf W_AUX, 0 ; devuelvo el valor de W
 		retfie
-		
+org 16h
 TrackMode
 ;************************************** Configuracion Track Mode ************************************************
 		movf PORTB, 0 ; leo PORTB para poder bajar la bandera de RB port change por si se encuentra en 1 
