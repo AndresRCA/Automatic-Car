@@ -140,6 +140,10 @@ Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea n
 		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
 		bcf PORTD, 3 ; led de reversa
 		bcf isReverse, 0
+		;*** esto es por efecto de la prueba ***
+		clrf CCPR1L 
+		clrf CCPR2L
+		;***************************************
 		return
 ;****************************************************************************************************************
 
@@ -149,7 +153,7 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		movwf TMR1L
 		movlw b'00001011'
 		movwf TMR1H
-		return
+		return ;1100001011110111
 		
 fullSpeed ; maxima velocidad en los motores delanteros y traseros
 		movlw d'255'
@@ -276,8 +280,8 @@ KP5		btfsc PORTB, 6
 Nxt5	btfss PORTB, 5 ; BACK_SENSOR
 		return ; guess I'll die (the port change would be the only sensor that left the black line, or something like that, think of it like a null check)
 		call fullSpeed
-KP5		btfsc PORTB, 5
-		goto KP5
+KP6		btfsc PORTB, 5
+		goto KP6
 		return
 
 ; 30 ms = 1*PRE*(256 - X) => PRE = 128 => X = 21.625 = 22, valor para un retraso de 30 ms
