@@ -30,6 +30,8 @@
 #define TRIG RB1
 #define PROXIMITY_DISTANCE 5 // 5 => 11 cm with TMR0 prescaler = 128
 
+#define SWEEP_TIME 10 // 5 seconds for a full sweep => 10 because tmr1 counts up to 500ms
+
 //I want this definition to work
 /*typedef struct {
     unsigned isReverse		:1;
@@ -44,11 +46,14 @@ car_state.isTurningRight = FALSE;*/
 volatile bit isReverse = FALSE;
 volatile bit isTurningLeft = FALSE;
 volatile bit isTurningRight = FALSE;
+volatile bit isEscaping = FALSE; // if it's not escaping, it's seeking a new target
+volatile bit toggle = FALSE;
 
 typedef unsigned char byte;
 volatile byte time = 0;
 volatile byte speed = 0;
 volatile byte turn_speed = 0;
+volatile byte ms500_to_sweep = 5; // in the beginning the car will start in the middle of the sweep
 
 /* Configuration functions */
 inline void PWM_INIT(void);
@@ -83,7 +88,7 @@ void main(void) {
     if(MODE) {
         /* Comp mode */
         while(1) {
-        	if(TMR1ON) continue; // TMR1 is only on when escaping a black line
+        	if(isEscaping) continue; // when escaping I don't want to do anything
             if(assessProximity(PROXIMITY_DISTANCE)) {
                 /* a car is near */
                 stopTurning(); // this function is redundant, setSpeed() accomplishes the same goal
@@ -92,8 +97,12 @@ void main(void) {
             else {
                 /* no car detected */
                 setSpeed(SEEKING_SPEED);
-                if(isTurningRight) continue; //the car was already turning, no need to call turnRight(), this saves me the problem of setSpeed() and turnRight() constantly changing the value of CCPR2L back and forth
-        		turnRight(); //this will only be called after assessProximity returns 0
+                if(toggle) { //toggle alternates every 5 seconds, making the car move like a snake
+                    turnRight();
+                }
+                else {
+                    turnLeft();
+                }
             }
         }
     }
@@ -253,29 +262,48 @@ void interrupt ISR(void){
     if(MODE) {
         /* Comp mode interruption */
         if(RBIF) {
-            if(TMR1ON) {
+            if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {
                 fullyDeactivateTMR1();
+                isReverse = FALSE; // just in case, can't know for sure what'll happen in a competition
+                stopTurning(); // in case the car was turning before getting knocked back
+                steppingLine(); // here I check RB bits to take the proper measures
             }
-            isReverse = FALSE; // just in case, can't know for sure what'll happen in a competition
-            stopTurning(); // in case the car was turning before getting knocked back
-            steppingLine(); // here I check RB bits to take the proper measures
-            TMR1ON = 1;
-            medSeg();
-            time = 0;
+            else { //here the car basically escaped the black line
+                isEscaping = TRUE;
+                TMR1ON = 1;
+                medSeg();
+                time = 0;
+            }
             RBIF = 0;
             return;
         }
         
         //TMR1 interruption
         TMR1IF = 0;
-        time++;
-        if(time == 8) { // if timer = 8, then 4 seconds have passed
-            // here the car does its thing
-            fullyDeactivateTMR1();
-            isReverse = FALSE; //In case the car was going in reverse
+        if(!isEscaping) {
+            /* do the seeking movement toggle function */
+            ms500_to_sweep++;
+            if(ms500_to_sweep == SWEEP_TIME) {
+                toggle = !toggle;
+                ms500_to_sweep = 0;
+            }
+            else {
+                medSeg(); //keep counting
+            }
+            return;
         }
         else {
-            medSeg(); // I keep counting
+            /* do the escaping timer function */
+            time++;
+            if(time == 8) { // if timer = 8, then 4 seconds have passed
+                // here the car does its thing
+                fullyDeactivateTMR1();
+                isReverse = FALSE; //In case the car was going in reverse
+                isEscaping = FALSE; // this condition is important for the main function
+            }
+            else {
+                medSeg(); // I keep counting
+            }
         }
         return;
     }
