@@ -44,8 +44,6 @@ car_state.isReverse = FALSE;
 car_state.isTurningLeft = FALSE;
 car_state.isTurningRight = FALSE;*/
 volatile bit isReverse = FALSE;
-volatile bit isTurningLeft = FALSE;
-volatile bit isTurningRight = FALSE;
 volatile bit isEscaping = FALSE; // if it's not escaping, it's seeking a new target
 volatile bit toggle = FALSE;
 
@@ -90,9 +88,9 @@ void main(void) {
         while(1) {
         	if(isEscaping) continue; // when escaping I don't want to do anything
             if(assessProximity(PROXIMITY_DISTANCE)) {
-                /* a car is near */
-                stopTurning(); // this function is redundant, setSpeed() accomplishes the same goal
+                /* a car is near */                
                 setSpeed(FULL_SPEED);
+                stopTurning();
             }
             else {
                 /* no car detected */
@@ -109,6 +107,7 @@ void main(void) {
     else {
         /* Tracking mode */
         setSpeed(MED_SPEED);
+        stopTurning(); // assigns the speed to the proper motors
         while(1);
     }
     return;
@@ -155,28 +154,24 @@ inline void TMR0_INIT(void) {
 
 void setSpeed(byte spd) {
     speed = spd;
-    CCPR1L = spd;
-    CCPR2L = spd;
     return;
 }
 
 void turnRight(void) {
+    CCPR1L = speed;
     CCPR2L = turn_speed;
-    isTurningRight = TRUE;
     return;
 }
 
 void turnLeft(void) {
+    CCPR2L = speed;
     CCPR1L = turn_speed;
-    isTurningLeft = TRUE;
     return;
 }
 
 void stopTurning(void) {
     CCPR1L = speed;
     CCPR2L = speed;
-    isTurningRight = FALSE;
-    isTurningLeft = FALSE;
     return;
 }
 
@@ -212,6 +207,7 @@ inline void steppingLine(void) {
     if(LEFT_SENSOR && RIGHT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
+        stopTurning();
         while(LEFT_SENSOR || RIGHT_SENSOR);
     }
     else if(LEFT_SENSOR && BACK_SENSOR) {
@@ -250,6 +246,7 @@ inline void steppingLine(void) {
     }
     else if(BACK_SENSOR) {
         setSpeed(FULL_SPEED);
+        stopTurning();
         while(BACK_SENSOR);
     }
     else { //this else is not neccesary
