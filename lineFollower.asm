@@ -71,7 +71,7 @@ TrackInt
 		movf speed, 0
 		call divideBy2
 		movwf turn_speed
-		call turnLeft
+		call turnRight
 Keep1	btfsc PORTB, 6
 		goto Keep1 ; Keep turning 1
 		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
@@ -83,7 +83,7 @@ ChckRB4 btfss PORTB, 4
 		movf speed, 0
 		call divideBy2
 		movwf turn_speed
-		call turnRight
+		call turnLeft
 Keep2	btfsc PORTB, 4
 		goto Keep2 ; Keep turning 2
 		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
