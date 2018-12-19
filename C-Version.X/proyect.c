@@ -237,11 +237,13 @@ inline void steppingLine(void) {
         stopTurning();
     }
     else if(LEFT_SENSOR && BACK_SENSOR) {
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnRight();
     }
     else if(RIGHT_SENSOR && BACK_SENSOR) {
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnLeft();
@@ -259,6 +261,7 @@ inline void steppingLine(void) {
         turnLeft();
     }
     else if(BACK_SENSOR) {
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
         stopTurning();
     }
