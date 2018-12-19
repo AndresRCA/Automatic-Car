@@ -235,46 +235,32 @@ inline void steppingLine(void) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
         stopTurning();
-        while(LEFT_SENSOR || RIGHT_SENSOR);
     }
     else if(LEFT_SENSOR && BACK_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnRight();
-        __delay_ms(500);
-        stopTurning();
-        while(BACK_SENSOR);
     }
     else if(RIGHT_SENSOR && BACK_SENSOR) {
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnLeft();
-        __delay_ms(500);
-        stopTurning();
-        while(BACK_SENSOR);
     }
     else if(LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnRight();
-        __delay_ms(500);
-        stopTurning();
-        while(LEFT_SENSOR);
     }
     else if(RIGHT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
         //turn_speed = ??
         turnLeft();
-        __delay_ms(500);
-        stopTurning();
-        while(RIGHT_SENSOR);
     }
     else if(BACK_SENSOR) {
         setSpeed(FULL_SPEED);
         stopTurning();
-        while(BACK_SENSOR);
     }
     else { //this else is not neccesary
         //I guess I'll just die
