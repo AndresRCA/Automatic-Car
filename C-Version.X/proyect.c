@@ -65,6 +65,7 @@ inline void TMR0_INIT(void);
 
 /* Main functions */
 void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
+/*void setTurnSpeed(void); //currently all it does is set it to speed/2*/
 void turnRight(void);
 void turnLeft(void);
 void stopTurning(void);
@@ -95,10 +96,11 @@ void main(void) {
         	if(isEscaping) continue; // when escaping I don't want to do anything
             if(assessProximity(PROXIMITY_DISTANCE)) {
                 /* a car is near */
-                /* reset everything about sweeping */
+                /* reset everything about sweeping (I don't care about the direction that comes from toggle) */
                 sweeps = 0;
-                ms500_to_sweep = 0;
-                //TMR1 = 0; // I'm not sure if I should clear it, maybe I should just leave it be, since I'll need the value for the sweeping mode
+                ms500_to_sweep = 5; //the car will make half a sweep like at the beginning
+				
+				/* this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms). */
                 medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
                 
                 setSpeed(FULL_SPEED);
@@ -121,8 +123,8 @@ void main(void) {
     }
     else {
         /* Tracking mode */
-        // turn_speed = ??; //this is just a plain declaration for the rest of the mode
         setSpeed(MED_SPEED);
+		turn_speed = 64; //this is just a plain declaration for the rest of the mode (MED_SPEED/2)
         stopTurning(); // assigns the speed to the proper motors
         while(1);
     }
@@ -173,6 +175,11 @@ void setSpeed(byte spd) {
     return;
 }
 
+/*void setTurnSpeed(void) {
+	turn_speed = speed/2; //could change depending of tests
+	return
+}*/
+
 void turnRight(void) {
     CCPR1L = speed;
     CCPR2L = turn_speed;
@@ -193,7 +200,6 @@ void stopTurning(void) {
 
 void rotate(void) {
     //left wheel going full forward + right wheel going full reverse, I guess
-    medSeg();
     return;
 }
 
@@ -240,25 +246,29 @@ inline void steppingLine(void) {
     else if(LEFT_SENSOR && BACK_SENSOR) {
         isReverse = FALSE;
         setSpeed(FULL_SPEED);
-        //turn_speed = ??
+		turn_speed = 127; //FULL_SPEED/2
+        //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR && BACK_SENSOR) {
         isReverse = FALSE;
         setSpeed(FULL_SPEED);
-        //turn_speed = ??
+		turn_speed = 127; //FULL_SPEED/2
+        //setTurnSpeed();
         turnLeft();
     }
     else if(LEFT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
-        //turn_speed = ??
+		turn_speed = 127; //FULL_SPEED/2
+        //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR) {
         isReverse = TRUE;
         setSpeed(FULL_SPEED);
-        //turn_speed = ??
+		turn_speed = 127; //FULL_SPEED/2
+        //setTurnSpeed();
         turnLeft();
     }
     else if(BACK_SENSOR) { // this could just be an else but I'm leaving it like this just in case
@@ -312,6 +322,7 @@ void interrupt ISR(void){
                     sweeps = 0;
                     isRotating = TRUE;
                     rotate();
+					medSeg(); // start counting the time it takes to rotate
                 }
             }
             else {
