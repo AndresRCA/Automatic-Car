@@ -31,6 +31,7 @@
 #define PROXIMITY_DISTANCE 5 // 5 => 11 cm with TMR0 prescaler = 128
 
 #define SWEEP_TIME 10 // 5 seconds for a full sweep => 10 because tmr1 counts up to 500ms
+#define ROTATING_TIME 24 // 12 seconds for a full 360 rotation, this depends on the car itself
 
 //I want this definition to work
 /*typedef struct {
@@ -46,12 +47,15 @@ car_state.isTurningRight = FALSE;*/
 volatile bit isReverse = FALSE;
 volatile bit isEscaping = FALSE; // if it's not escaping, it's seeking a new target
 volatile bit toggle = FALSE;
+volatile bit isRotating = FALSE;
 
 typedef unsigned char byte;
 volatile byte time = 0;
 volatile byte speed = 0;
 volatile byte turn_speed = 0;
 volatile byte ms500_to_sweep = 5; // in the beginning the car will start in the middle of the sweep
+volatile byte sweeps = 0;
+volatile byte ms500_to_rotate = 0;
 
 /* Configuration functions */
 inline void PWM_INIT(void);
@@ -64,6 +68,7 @@ void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
 void turnRight(void);
 void turnLeft(void);
 void stopTurning(void);
+void rotate(void);
 
 /* Comp functions */
 void medSeg(void);
@@ -85,21 +90,31 @@ void main(void) {
     
     if(MODE) {
         /* Comp mode */
+        medSeg(); // the initial 500ms when sweeping
         while(1) {
         	if(isEscaping) continue; // when escaping I don't want to do anything
             if(assessProximity(PROXIMITY_DISTANCE)) {
-                /* a car is near */                
+                /* a car is near */
+                /* reset everything about sweeping */
+                sweeps = 0;
+                ms500_to_sweep = 0;
+                //TMR1 = 0; // I'm not sure if I should clear it, maybe I should just leave it be, since I'll need the value for the sweeping mode
+                medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
+                
                 setSpeed(FULL_SPEED);
                 stopTurning();
             }
             else {
                 /* no car detected */
-                setSpeed(SEEKING_SPEED);
-                if(toggle) { //toggle alternates every 5 seconds, making the car move like a snake
-                    turnRight();
-                }
+                if(isRotating) continue; // when rotating don't do anything except what made isRotating = TRUE
                 else {
-                    turnLeft();
+                    setSpeed(SEEKING_SPEED);
+                    if(toggle) { //toggle alternates every 5 seconds, making the car move like a snake
+                        turnRight();
+                    }
+                    else {
+                        turnLeft();
+                    }
                 }
             }
         }
@@ -172,6 +187,12 @@ void turnLeft(void) {
 void stopTurning(void) {
     CCPR1L = speed;
     CCPR2L = speed;
+    return;
+}
+
+void rotate(void) {
+    //left wheel going full forward + right wheel going full reverse, I guess
+    medSeg();
     return;
 }
 
@@ -277,12 +298,29 @@ void interrupt ISR(void){
         
         //TMR1 interruption
         TMR1IF = 0;
+        if(isRotating) { //the rotating takes sort of priority
+            ms500_to_rotate++;
+            if(ms500_to_rotate == ROTATING_TIME) {
+                ms500_to_rotate = 0;
+                isRotating = FALSE;
+                stopTurning();
+            }
+            else {
+                medSeg(); // keep rotating
+            }
+        }
         if(!isEscaping) {
             /* do the seeking movement toggle function */
             ms500_to_sweep++;
             if(ms500_to_sweep == SWEEP_TIME) {
                 toggle = !toggle;
                 ms500_to_sweep = 0;
+                sweeps++;
+                if(sweeps == 4) { //assume the car makes its sweeping motion 4 times before rotating 360 degrees
+                    sweeps = 0;
+                    isRotating = TRUE;
+                    rotate();
+                }
             }
             else {
                 medSeg(); //keep counting
