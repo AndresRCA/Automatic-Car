@@ -216,10 +216,16 @@ bit assessProximity(byte distance) {
 	}
 }
 
+/* cleans everything concerning TMR1 functionality outside RB change interruption */
 void fullyDeactivateTMR1(void) {
     TMR1ON = 0;
     TMR1 = 0;
     time = 0;
+    sweeps = 0;
+    ms500_to_rotate = 0;
+    ms500_to_sweep = 0;
+    isRotating = FALSE;
+    isEscaping = FALSE;
     return;
 }
 
@@ -281,8 +287,7 @@ void interrupt ISR(void){
         /* Comp mode interruption */
         if(RBIF) {
             if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {
-                fullyDeactivateTMR1();
-                isReverse = FALSE; // just in case, can't know for sure what'll happen in a competition
+                fullyDeactivateTMR1();                
                 stopTurning(); // in case the car was turning before getting knocked back
                 steppingLine(); // here I check RB bits to take the proper measures
             }
@@ -332,7 +337,7 @@ void interrupt ISR(void){
             time++;
             if(time == 8) { // if timer = 8, then 4 seconds have passed
                 // here the car does its thing
-                fullyDeactivateTMR1();
+                time = 0;
                 isReverse = FALSE; //In case the car was going in reverse
                 isEscaping = FALSE; // this condition is important for the main function
             }
