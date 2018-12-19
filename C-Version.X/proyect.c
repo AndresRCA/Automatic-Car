@@ -121,6 +121,7 @@ void main(void) {
     }
     else {
         /* Tracking mode */
+        // turn_speed = ??; //this is just a plain declaration for the rest of the mode
         setSpeed(MED_SPEED);
         stopTurning(); // assigns the speed to the proper motors
         while(1);
@@ -260,13 +261,10 @@ inline void steppingLine(void) {
         //turn_speed = ??
         turnLeft();
     }
-    else if(BACK_SENSOR) {
+    else if(BACK_SENSOR) { // this could just be an else but I'm leaving it like this just in case
         isReverse = FALSE;
         setSpeed(FULL_SPEED);
         stopTurning();
-    }
-    else { //this else is not neccesary
-        //I guess I'll just die
     }
     return;
 }
@@ -336,19 +334,20 @@ void interrupt ISR(void){
         }
         return;
     }
-    /* Tracking mode interruption */        
-    if(RIGHT_SENSOR) {
-        // turn_speed = ??;
+    /* Tracking mode interruption */
+    if(RIGHT_SENSOR && LEFT_SENSOR) { //it could happen...
+        stopTurning();
+    }
+    else if(RIGHT_SENSOR) {
         turnRight();
-        while(RIGHT_SENSOR); // the car keeps turning until it's 0
     }
-    else if(LEFT_SENSOR) { //else to avoid a situation where both RIGHT_SENSOR AND LEFT_SENSOR equals 1
-        // turn_speed = ??;
+    else if(LEFT_SENSOR) {
         turnLeft();
-        while(LEFT_SENSOR); // the car keeps turning until it's 0
     }
-    stopTurning(); // after the previous sensor goes back to 0, the car stops turning
-    PORTB; // just in case the other sensors detected a change
+    else { // RIGHT_SENSOR || LEFT_SENSOR = FALSE
+        stopTurning();
+    }
     RBIF = 0;
     return;
+    
 }
