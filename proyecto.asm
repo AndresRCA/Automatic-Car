@@ -110,35 +110,31 @@ TrackMode
 ;****************************************************************************************************************
 
 ;**************************************** Main Tracking Mode ****************************************************
-		call medSpeed
-TMain 	goto TMain	
+		movlw d'128' ; MED_SPEED
+		call setSpeed ; speed = MED_SPEED
+		movlw d'64' ; speed/2
+		movwf turn_speed
+		call stopTurning ; el carro va derecho al inicio
+TMain 	goto TMain
 ;****************************************************************************************************************
 
 ;************************************** Funciones INT Track Mode ************************************************
-TrackInt		
-		btfss PORTB, 6 ; reviso si el sensor de la derecha detecto la linea negra, si la toco entonces el carro tiene que girar a la derecha
+TrackInt
+		btfsc PORTB, 6 ; left && right
+		btfss PORTB, 4
+		goto ChckRB6
+		call stopTurning
+		goto TrckEnd
+ChckRB6	btfss PORTB, 6 ; reviso si el sensor de la derecha detecto la linea negra, si la toco entonces el carro tiene que girar a la derecha
 		goto ChckRB4
-		; movf speed, 0
-		; call divideBy2
-		; movwf turn_speed
 		call turnRight
-Keep1	btfsc PORTB, 6
-		goto Keep1 ; Keep turning 1
-		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
-		call stopTurning ; si RB6 = 0 entonces ya no tiene que girar a la izquierda
-		bcf INTCON, 0 ; bajo la bandera
-		return
+		goto TrckEnd
 ChckRB4 btfss PORTB, 4
-		goto FlsAlrm ; falsa alarma, aparentemente ni el sensor de la izquierda ni el de la derecha se activaron, o se activo por cuestiones de imperfecciones de la linea
-		; movf speed, 0
-		; call divideBy2
-		; movwf turn_speed
+		goto AllOff ; left || right = false
 		call turnLeft
-Keep2	btfsc PORTB, 6
-		goto Keep2 ; Keep turning 2
-		; tal vez haya que poner un ligero retardo antes de que termine de girar? nah, probablemente no
-		call stopTurning ; si RB6 = 0 entonces ya no tiene que girar a la izquierda
-FlsAlrm	bcf INTCON, 0 ; bajo la bandera
+		goto TrckEnd
+AllOff	call stopTurning		
+TrckEnd	bcf INTCON, 0 ; bajo la bandera
 		return
 ;****************************************************************************************************************
 
@@ -248,57 +244,27 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		movlw b'00001011'
 		movwf TMR1H
 		return
-
-seekingSpeed ; velocidad baja para la busqueda de un oponente
-		movlw d'64'
-		movwf speed
-		movwf CCPR1L
-		movwf CCPR2L
-		return
-
-medSpeed ; media velocidad en los motores delanteros y traseros	
-		movlw d'128'
-		movwf speed
-		btfsc isReverse, 0
-		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves, en este caso seria lo mismo...
-		movwf CCPR1L
-		movwf CCPR2L
-		return
 		
-fullSpeed ; maxima velocidad en los motores delanteros y traseros
-		movlw d'255'
+setSpeed ; accepts a value from w
 		movwf speed
-		btfsc isReverse, 0
-		comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves
-		movwf CCPR1L
-		movwf CCPR2L
-		return
-		
-divideBy2 ; funcion que divide entre 2 el numero que ingresa a w previamente
-		clrf cociente
-		movwf aux
-		movlw d'2'
-Divide	subwf aux, 1
-		btfss STATUS, 0 ; cuando la resta de negativo entonces la division se completo
-		goto DivEnd
-		incf cociente, 1 ; incremento el valor del cociente por cada resta
-		goto Divide
-DivEnd	movf cociente, 0 ; muevo el cociente a w
-		return ; w al final da el cociente de la division		
+		return	
 		
 turnRight ; disminuir la velocidad de las ruedas en la derecha
+		movf speed, 0
+		movwf CCPR1L
 		movf turn_speed, 0
 		movwf CCPR2L
 		return
 
 turnLeft ; disminuir la velocidad de las ruedas en la izquierda
+		movf speed, 0
+		movwf CCPR2L
 		movf turn_speed, 0
 		movwf CCPR1L
 		return
 		
 stopTurning ; ambos lados tienen la misma velocidad
 		movf speed, 0
-		movwf turn_speed ; turn_speed = speed
 		movwf CCPR1L
 		movwf CCPR2L
 		return
