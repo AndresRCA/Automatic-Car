@@ -16,6 +16,7 @@ cociente EQU 24h ; variable auxiliar para obtener el cociente en una division
 ;************* Variables modo COMP *****************************
 time EQU 25h
 isReverse EQU 26h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
+isEscaping EQU 27h ; booleano que indica si el carro esta escapando de la linea negra
 ;***************************************************************
 
 ;****************************************************************************************************************
@@ -77,12 +78,6 @@ CompMode
 		; ** recuerda prender el TMR1 en algun lado "bsf T1CON, 0" **
 		;******************************************		
 		
-		;************* Configuracion TMR0 *********
-		bcf OPTION_REG, 0 ; prescaler 128 para cubrir la distancia maxima de 4 metros (TMR0 = 182) y evitar overflows
-		bcf OPTION_REG, 5 ; el tmr0 es temporizador
-		bcf OPTION_REG, 3 ; prescaler asignado a tmr0
-		;******************************************	
-		
 		bcf STATUS, 5
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
@@ -104,6 +99,7 @@ CompMode
 		clrf turn_speed
 		clrf cociente
 		clrf isReverse
+		clrf isEscaping
 		clrf time
 ;****************************************************************************************************************
 
@@ -114,19 +110,22 @@ CMain 	nop ; aqui probablemente se hacen conversiones A/D constantemente para de
 
 ;************************************** Funciones INT Comp Mode *************************************************
 RBChangeInt ; tomo las medidas necesarias para redirigir el auto
-		btfss T1CON, 0 ; verifico si el timer1 esta prendido, si lo esta entonces ocurrio la interrupcion RB mientras trataba de salir de una linea momentos antes
-		goto NotOn ; no esta prendido
-		; si esta prendido deshabilito todo eso  
-		call fullyDeactivateTMR1
-NotOn	bcf PORTD, 3 ; led de reversa
-		bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
-		call stopTurning ; podria estar dando vueltas por el modo seeking
-		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+		btfsc PORTB, 4
+		goto StpLine
+		btfsc PORTB, 6
+		goto StpLine
+		btfsc PORTB, 5
+		goto StpLine
+		bsf isEscaping, 0 ; todos los sensores estan en 0, por lo tanto esta escapando
+		bsf T1CON, 0
 		bsf PORTD, 2 ; prendo el led de TMR1
-		bsf T1CON, 0 ; prendo el TMR1
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
-		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
+		goto RBEnd
+StpLine	call fullyDeactivateTMR1 ; limpio todo los procesos que involucren el tmr1 fuera de la interrupcion RB
+		call stopTurning ; detengo lo que estaba haciendo antes
+		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+RBEnd	bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
 		return
 
 TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
@@ -155,54 +154,37 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		movwf TMR1H
 		return ;1100001011110111
 		
-fullSpeed ; maxima velocidad en los motores delanteros y traseros
-		movlw d'255'
+setSpeed ; accepts a value from w
 		movwf speed
-		;btfsc isReverse, 0
-		;comf speed, 0 ; si el carro va en reverso, se saca el valor complemento para que el duty cycle sea al reves
-		movwf CCPR1L
-		movwf CCPR2L
-		return
-		
-divideBy2 ; funcion que divide entre 2 el numero que ingresa a w previamente
-		clrf cociente
-		movwf aux
-		movlw d'2'
-Divide	subwf aux, 1
-		btfss STATUS, 0 ; cuando la resta de negativo entonces la division se completo
-		goto DivEnd
-		incf cociente, 1 ; incremento el valor del cociente por cada resta
-		goto Divide
-DivEnd	movf cociente, 0 ; muevo el cociente a w
-		return ; w al final da el cociente de la division		
+		return	
 		
 turnRight ; disminuir la velocidad de las ruedas en la derecha
-		bsf PORTD, 1
+		movf speed, 0
+		movwf CCPR1L
 		movf turn_speed, 0
 		movwf CCPR2L
 		return
 
 turnLeft ; disminuir la velocidad de las ruedas en la izquierda
-		bsf PORTD, 0
+		movf speed, 0
+		movwf CCPR2L
 		movf turn_speed, 0
 		movwf CCPR1L
 		return
 		
 stopTurning ; ambos lados tienen la misma velocidad
-		bcf PORTD, 0
-		bcf PORTD, 1
 		movf speed, 0
-		movwf turn_speed ; turn_speed = speed
 		movwf CCPR1L
 		movwf CCPR2L
 		return
 
 fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren tanto cosas inesperadas como momentos de seguridad al salirse de la linea negra
-		bcf PORTD,2 
+		bcf PORTD, 2 ; apago el led de tmr1 
 		bcf T1CON, 0
 		clrf TMR1H
 		clrf TMR1L
 		clrf time
+		bcf isEscaping, 0
 		return	
 		
 ;#define LEFT_SENSOR RB4
@@ -215,86 +197,60 @@ steppingLine ; funcion que se llama cuando el carro toca la linea en modo compet
 		; sensor izquierdo y derecho estan activados
 		bsf PORTD, 3 ; led de reversa
 		bsf isReverse, 0
-		call fullSpeed
-KP1		btfsc PORTB, 4
-		goto KP1
-		btfsc PORTB, 6
-		goto KP1
-		; aqui finalmente ni el sensor izquierda ni el derecho son 1
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		call stopTurning
 		return
 Nxt1	btfsc PORTB, 4 ; LEFT_SENSOR && BACK_SENSOR
 		btfss PORTB, 5
 		goto Nxt2
 		; sensor izquierdo y trasero estan activados
-		call fullSpeed
-		movf speed, 0
-		call divideBy2
+		bcf PORTD, 3 ; led de reversa
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
 		movwf turn_speed
 		call turnRight
-		call delay2s
-		call stopTurning
-KP2		btfsc PORTB, 5
-		goto KP2
 		return
 Nxt2	btfsc PORTB, 6 ; RIGHT_SENSOR && BACK_SENSOR
 		btfss PORTB, 5
 		goto Nxt3
-		call fullSpeed
-		movf speed, 0
-		call divideBy2
+		bcf PORTD, 3 ; led de reversa
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
 		movwf turn_speed
 		call turnLeft
-		call delay2s
-		call stopTurning
-KP3		btfsc PORTB, 5
-		goto KP3
 		return
 Nxt3	btfss PORTB, 4 ; LEFT_SENSOR
 		goto Nxt4
 		bsf PORTD, 3 ; led de reversa
 		bsf isReverse, 0
-		call fullSpeed
-		movf speed, 0
-		call divideBy2
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
 		movwf turn_speed
 		call turnRight
-		call delay2s
-		call stopTurning
-KP4		btfsc PORTB, 4
-		goto KP4
 		return
 Nxt4	btfss PORTB, 6 ; RIGHT_SENSOR
 		goto Nxt5
 		bsf PORTD, 3 ; led de reversa
 		bsf isReverse, 0
-		call fullSpeed
-		movf speed, 0
-		call divideBy2
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
 		movwf turn_speed
 		call turnLeft
-		call delay2s
-		call stopTurning
-KP5		btfsc PORTB, 6
-		goto KP5
 		return
 Nxt5	btfss PORTB, 5 ; BACK_SENSOR
 		return ; guess I'll die (the port change would be the only sensor that left the black line, or something like that, think of it like a null check)
-		call fullSpeed
-KP6		btfsc PORTB, 5
-		goto KP6
-		return
-
-; 30 ms = 1*PRE*(256 - X) => PRE = 128 => X = 21.625 = 22, valor para un retraso de 30 ms
-delay2s
-		movlw d'70' ; 30ms * 70 = 2.1s
-		movwf aux
-SrtDl	bcf INTCON, 2 ;apago la bandera del tmr0
-        movlw d'22' ; aproximadamente 30 ms
-        movwf TMR0
-Back    btfss INTCON, 2
-        goto Back
-        decfsz aux, 1
-		goto SrtDl
+		bcf PORTD, 3 ; led de reversa
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		call stopTurning
 		return
 ;****************************************************************************************************************
 end
