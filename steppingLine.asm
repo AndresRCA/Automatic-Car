@@ -138,7 +138,7 @@ TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segun
 Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
 		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
 		bcf PORTD, 3 ; led de reversa
-		bcf isReverse, 0
+		bcf isReverse, 0 ; por si el carro iba en reversa
 		;*** esto es por efecto de la prueba ***
 		clrf CCPR1L 
 		clrf CCPR2L
@@ -159,6 +159,7 @@ setSpeed ; accepts a value from w
 		return	
 		
 turnRight ; disminuir la velocidad de las ruedas en la derecha
+		bsf PORTD, 1
 		movf speed, 0
 		movwf CCPR1L
 		movf turn_speed, 0
@@ -166,6 +167,7 @@ turnRight ; disminuir la velocidad de las ruedas en la derecha
 		return
 
 turnLeft ; disminuir la velocidad de las ruedas en la izquierda
+		bsf PORTD, 0
 		movf speed, 0
 		movwf CCPR2L
 		movf turn_speed, 0
@@ -173,6 +175,8 @@ turnLeft ; disminuir la velocidad de las ruedas en la izquierda
 		return
 		
 stopTurning ; ambos lados tienen la misma velocidad
+		bcf PORTD, 0
+		bcf PORTD, 1
 		movf speed, 0
 		movwf CCPR1L
 		movwf CCPR2L
