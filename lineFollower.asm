@@ -113,7 +113,6 @@ stopTurning ; ambos lados tienen la misma velocidad
 		bcf PORTD, 0 ; led
 		bcf PORTD, 1 ; led
 		movf speed, 0
-		movwf turn_speed ; turn_speed = speed
 		movwf CCPR1L
 		movwf CCPR2L
 		return
