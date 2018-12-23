@@ -42,6 +42,11 @@ cociente EQU 24h ; variable auxiliar para obtener el cociente en una division
 time EQU 25h
 isReverse EQU 26h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
 isEscaping EQU 27h ; booleano que indica si el carro esta escapando de la linea negra
+toggle EQU 28h
+isRotating EQU 29h
+ms500_to_sweep EQU 2Ah
+sweeps EQU 2Bh
+ms500_to_rotate EQU 2Ch
 ;***************************************************************
 
 ;****************************************************************************************************************
@@ -200,6 +205,11 @@ CompMode
 		clrf isReverse
 		clrf isEscaping
 		clrf time
+		clrf toggle
+		movlw d'5' ; al comienzo el carro va a comenzar en el medio del barrido
+		movwf ms500_to_sweep
+		clrf sweeps
+		clrf ms500_to_rotate
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
