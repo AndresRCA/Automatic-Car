@@ -96,21 +96,28 @@ void main(void) {
         	if(isEscaping) continue; // when escaping I don't want to do anything
             if(assessProximity(PROXIMITY_DISTANCE)) {
                 /* a car is near */
-                /* reset everything about sweeping (I don't care about the direction that comes from toggle) */
+               
+                /* reset everything about sweeping and rotating (I don't care about the direction that comes from toggle) */
+                isRotating = FALSE;
+                ms500_to_rotate = 0;
                 sweeps = 0;
                 ms500_to_sweep = 5; //the car will make half a sweep like at the beginning
 				
-				/* this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms). */
-                medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
-                
+                // assume an RB change interruption (a sensor goes high, this is the only way the interruption occurs inside this block) occurs while inside this block, the car would go forward, therefore ignoring the previous instruction that came from steppingLine(), we don't want that
+                if(isEscaping) continue; //just in case it happens after the time it takes to measure the distance, it's like a double check
                 setSpeed(FULL_SPEED);
                 stopTurning();
+                
+                /* this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms). */
+                medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
+                
             }
             else {
                 /* no car detected */
                 if(isRotating) continue; // when rotating don't do anything except what made isRotating = TRUE
                 else {
                     setSpeed(SEEKING_SPEED);
+                    turn_speed = 32; // SEEKING_SPEED/2
                     if(toggle) { //toggle alternates every 5 seconds, making the car move like a snake
                         turnRight();
                     }
@@ -232,7 +239,6 @@ void fullyDeactivateTMR1(void) {
     ms500_to_rotate = 0;
     ms500_to_sweep = 0;
     isRotating = FALSE;
-    isEscaping = FALSE;
     return;
 }
 
@@ -283,13 +289,13 @@ void interrupt ISR(void){
     if(MODE) {
         /* Comp mode interruption */
         if(RBIF) {
+            isEscaping = TRUE; // the car is trying to escape, this becomes FALSE after 4 seconds have passed since the sensor were 0
             if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {
-                fullyDeactivateTMR1();                
+                fullyDeactivateTMR1();
                 stopTurning(); // in case the car was turning before getting knocked back
                 steppingLine(); // here I check RB bits to take the proper measures
             }
             else { //here the car basically escaped the black line
-                isEscaping = TRUE;
                 TMR1ON = 1;
                 medSeg();
                 time = 0;
@@ -300,18 +306,28 @@ void interrupt ISR(void){
         
         //TMR1 interruption
         TMR1IF = 0;
-        if(isRotating) { //the rotating takes sort of priority
+        if(isEscaping) {
+            /* do the escaping timer function */
+            time++;
+            if(time == 8) { // if timer = 8, then 4 seconds have passed
+                // here the car does its thing
+                time = 0;
+                isReverse = FALSE; //In case the car was going in reverse
+                isEscaping = FALSE; // this condition is important for the main function
+            }
+            medSeg(); // either I keep counting or start timing the sweeping mode
+        }
+        else if(isRotating){
             ms500_to_rotate++;
             if(ms500_to_rotate == ROTATING_TIME) {
                 ms500_to_rotate = 0;
                 isRotating = FALSE;
                 stopTurning();
+                ms500_to_sweep = 5; //The car will sweep like at the start
             }
-            else {
-                medSeg(); // keep rotating
-            }
+            medSeg(); // either it keeps rotating or starts the sweeping
         }
-        if(!isEscaping) {
+        else { //else means it is sweeping
             /* do the seeking movement toggle function */
             ms500_to_sweep++;
             if(ms500_to_sweep == SWEEP_TIME) {
@@ -322,27 +338,11 @@ void interrupt ISR(void){
                     sweeps = 0;
                     isRotating = TRUE;
                     rotate();
-					medSeg(); // start counting the time it takes to rotate
                 }
             }
-            else {
-                medSeg(); //keep counting
-            }
-            return;
+            medSeg(); // either I keep counting or I start counting the time it takes to rotate
         }
-        else {
-            /* do the escaping timer function */
-            time++;
-            if(time == 8) { // if timer = 8, then 4 seconds have passed
-                // here the car does its thing
-                time = 0;
-                isReverse = FALSE; //In case the car was going in reverse
-                isEscaping = FALSE; // this condition is important for the main function
-            }
-            else {
-                medSeg(); // I keep counting
-            }
-        }
+        // ideally I would put a medSeg() here and delete the ones above, but for code understanding I have to keep it like this
         return;
     }
     /* Tracking mode interruption */
