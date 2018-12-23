@@ -206,6 +206,7 @@ CompMode
 		clrf isEscaping
 		clrf time
 		clrf toggle
+		clrf isRotating
 		movlw d'5' ; al comienzo el carro va a comenzar en el medio del barrido
 		movwf ms500_to_sweep
 		clrf sweeps
