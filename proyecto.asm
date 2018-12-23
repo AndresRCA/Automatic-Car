@@ -235,14 +235,14 @@ Lft		call turnLeft
 
 ;************************************** Funciones INT Comp Mode *************************************************
 RBChangeInt ; tomo las medidas necesarias para redirigir el auto
+		bsf isEscaping, 0
 		btfsc PORTB, 4
 		goto StpLine
 		btfsc PORTB, 6
 		goto StpLine
 		btfsc PORTB, 5
 		goto StpLine
-		bsf isEscaping, 0 ; todos los sensores estan en 0, por lo tanto esta escapando
-		bsf T1CON, 0
+		bsf T1CON, 0 ; todos los sensores estan en 0, por lo tanto esta escapando
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
 		goto RBEnd
@@ -254,7 +254,20 @@ RBEnd	bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado 
 
 TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
 		bcf PIR1, 0 ; apago la bandera del TMR1 overflow
-		btfss isRotating, 0
+		btfss isEscaping, 0
+		goto IsRotng ; is rotating?
+		incf time, 1 ; aqui el carro esta escapando
+		btfsc time, 3 ; si time es 8, han pasado 4 segundos
+		goto Safe ; time = 8
+		call medSeg ; si no es 8 entonces espero el otro medio segundo
+		return
+Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
+		clrf time ; limpio time
+		bcf isReverse, 0 ; por si el carro iba en reversa
+		bcf isEscaping, 0 ; es el final del escape
+		call medSeg ; empieza el conteo del modo de barrido
+		return			
+isRotng	btfss isRotating, 0
 		goto NtRot ; not rotating
 		incf ms500_to_rotate, 1
 		movlw d'24'
@@ -266,11 +279,9 @@ TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segun
 		call stopTurning
 		movlw d'5' ; el carro va a entrar en medio barrido como el comienzo
 		movwf ms500_to_sweep
-DntStop	call medSeg ; tambien es el inicio del barrido
+DntStop	call medSeg ; es el inicio del barrido o seguir contando la rotacion
 		return
-NtRot	btfsc isEscaping, 0
-		goto Escape
-		incf ms500_to_sweep, 1 ; not escaping
+NtRot	incf ms500_to_sweep, 1 ; si no esta rotando ni esta escapando, el carro deberia estar barriendo
 		movlw d'10' ; SWEEP_TIME
 		subwf ms500_to_sweep, 0
 		btfss STATUS, 2 ; ms500_to_sweep == 10
@@ -284,17 +295,7 @@ NtRot	btfsc isEscaping, 0
 		clrf sweeps ; si sweeps = 4 -> sweeps = 0 y el resto de lo que sigue
 		bsf isRotating, 0
 		call rotate
-KpSwpng	call medSeg
-		return
-		
-Escape	incf time, 1
-		btfsc time, 3 ; si time es 8, han pasado 4 segundos
-		goto Safe ; time = 8
-		call medSeg ; si no es 8 entonces espero el otro medio segundo
-		return
-Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
-		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando todos los sensores sean 0
-		bcf isReverse, 0 ; por si el carro iba en reversa
+KpSwpng	call medSeg ; o sigue barriendo o empieza el conteo del inicio de la rotacion
 		return
 ;****************************************************************************************************************
 
@@ -343,7 +344,6 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf ms500_to_rotate
 		clrf ms500_to_sweep
 		bcf isRotating, 0
-		bcf isEscaping, 0
 		return		
 
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
