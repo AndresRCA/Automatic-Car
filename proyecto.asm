@@ -214,8 +214,23 @@ CompMode
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
-CMain 	nop ; aqui probablemente se hacen conversiones A/D constantemente para decidir hacia donde girar y tomar decisiones respecto al resultado
-		goto CMain		
+CMain 	btfsc isEscaping, 0 ; si el carro esta escapando, no hacer nada
+		goto CMain
+		;************ ultra sound function *************
+		; ultra sound decision making goes here
+		;***********************************************
+NtClose	btfsc isRotating, 0 ; si el carro esta rotando, dejar volver a medir la distancia al inicio del CMain
+		goto CMain
+		movlw d'64' ; SEEKING_SPEED
+		call setSpeed
+		movlw d'32' ; SEEKING_SPEED/2
+		movwf turn_speed
+		btfss toggle, 0 ; toggle alterna cada 5 segundos, haciendo que el carro se mueva como una serpiente
+		goto Lft
+		call turnRight
+		goto CMain
+Lft		call turnLeft
+		goto CMain
 ;****************************************************************************************************************
 
 ;************************************** Funciones INT Comp Mode *************************************************
