@@ -41,6 +41,7 @@ cociente EQU 24h ; variable auxiliar para obtener el cociente en una division
 ;************* Variables modo COMP *****************************
 time EQU 25h
 isReverse EQU 26h ; booleano que indica si el carro va en reverso, bit 0 = 1 significa true
+isEscaping EQU 27h ; booleano que indica si el carro esta escapando de la linea negra
 ;***************************************************************
 
 ;****************************************************************************************************************
@@ -190,7 +191,6 @@ CompMode
 		;***************************************************************
 		
 		bcf PORTB, 1 ; lo pongo en 0 por si estaba en 1 antes (para el sensor)
-		bsf ADCON0, 0 ; enciendo el modulo conversor
 ;****************************************************************************************************************
 
 ;****************************** Inicializacion de variables *****************************************************
@@ -198,6 +198,7 @@ CompMode
 		clrf turn_speed
 		clrf cociente
 		clrf isReverse
+		clrf isEscaping
 		clrf time
 ;****************************************************************************************************************
 
@@ -208,17 +209,21 @@ CMain 	nop ; aqui probablemente se hacen conversiones A/D constantemente para de
 
 ;************************************** Funciones INT Comp Mode *************************************************
 RBChangeInt ; tomo las medidas necesarias para redirigir el auto
-		btfss T1CON, 0 ; verifico si el timer1 esta prendido, si lo esta entonces ocurrio la interrupcion RB mientras trataba de salir de una linea momentos antes
-		goto NotOn ; no esta prendido
-		; si esta prendido deshabilito todo eso  
-		call fullyDeactivateTMR1
-NotOn	bcf isReverse, 0 ; por si acaso, no se sabe que puede ocurrir en la competencia
-		call stopTurning ; podria estar dando vueltas por el modo seeking
-		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
-		bsf T1CON, 0 ; prendo el TMR1
+		btfsc PORTB, 4
+		goto StpLine
+		btfsc PORTB, 6
+		goto StpLine
+		btfsc PORTB, 5
+		goto StpLine
+		bsf isEscaping, 0 ; todos los sensores estan en 0, por lo tanto esta escapando
+		bsf T1CON, 0
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
-		bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
+		goto RBEnd
+StpLine	call fullyDeactivateTMR1 ; limpio todo los procesos que involucren el tmr1 fuera de la interrupcion RB
+		call stopTurning ; detengo lo que estaba haciendo antes
+		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
+RBEnd	bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
 		return
 
 TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
@@ -229,7 +234,8 @@ TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segun
 		call medSeg ; si no es 8 entonces espero el otro medio segundo
 		return
 Safe	; aqui el carro hace lo suyo, despues de exitosamente salirse de la linea negra hace 4 segundos
-		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando esta ocurra
+		call fullyDeactivateTMR1 ; apago el TMR1 y lo activo al final de la interrupcion de RB<7:4> cuando todos los sensores sean 0
+		bcf isReverse, 0 ; por si el carro iba en reversa
 		return
 ;****************************************************************************************************************
 
@@ -247,7 +253,7 @@ medSeg	; le doy el valor necesario a TMR1 para que interrumpa en medio segundo
 		
 setSpeed ; accepts a value from w
 		movwf speed
-		return	
+		return
 		
 turnRight ; disminuir la velocidad de las ruedas en la derecha
 		movf speed, 0
@@ -274,22 +280,64 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf TMR1H
 		clrf TMR1L
 		clrf time
+		bcf isEscaping, 0
 		return
 		
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
-		btfss PORTB, 7
-		goto ChckRB5 ; chequeo la parte trasera
-		bsf isReverse, 0 ; lo pongo en reversa
-		call fullSpeed
+		btfsc PORTB, 4 ; LEFT_SENSOR && RIGHT_SENSOR
+		btfss PORTB, 6
+		goto Nxt1 ; siguiente condicion
+		; sensor izquierdo y derecho estan activados
+		bsf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		call stopTurning
 		return
-Keep3	btfsc PORTB, 7
-		goto Keep3
+Nxt1	btfsc PORTB, 4 ; LEFT_SENSOR && BACK_SENSOR
+		btfss PORTB, 5
+		goto Nxt2
+		; sensor izquierdo y trasero estan activados
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
+		movwf turn_speed
+		call turnRight
 		return
-ChckRB5	btfss PORTB, 5
-		nop ; <-- Aqui se activo algun sensor de los lados
-		call fullSpeed ; ira al frente a toda velocidad
-Keep4	btfsc PORTB, 5
-		goto Keep4
+Nxt2	btfsc PORTB, 6 ; RIGHT_SENSOR && BACK_SENSOR
+		btfss PORTB, 5
+		goto Nxt3
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
+		movwf turn_speed
+		call turnLeft
+		return
+Nxt3	btfss PORTB, 4 ; LEFT_SENSOR
+		goto Nxt4
+		bsf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
+		movwf turn_speed
+		call turnRight
+		return
+Nxt4	btfss PORTB, 6 ; RIGHT_SENSOR
+		goto Nxt5
+		bsf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		movlw d'128' ; FULL_SPEED/2
+		movwf turn_speed
+		call turnLeft
+		return
+Nxt5	btfss PORTB, 5 ; BACK_SENSOR
+		return ; guess I'll die (the port change would be the only sensor that left the black line, or something like that, think of it like a null check)
+		bcf isReverse, 0
+		movlw d'255' ; FULL_SPEED
+		call setSpeed ; speed = FULL_SPEED
+		call stopTurning
 		return
 ;****************************************************************************************************************
 
