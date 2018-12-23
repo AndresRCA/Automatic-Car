@@ -254,7 +254,40 @@ RBEnd	bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado 
 
 TMR1Int ; verifico cuantos segundos han pasado (todavia no se sabe cuantos segundos seran, por ahora 4s)
 		bcf PIR1, 0 ; apago la bandera del TMR1 overflow
-		incf time, 1
+		btfss isRotating, 0
+		goto NtRot ; not rotating
+		incf ms500_to_rotate, 1
+		movlw d'24'
+		subwf ms500_to_rotate, 0
+		btfss STATUS, 2 ; ms500_to_rotate == 24 (12 segundos)
+		goto DntStop ; dont stop rotating, keep counting
+		clrf ms500_to_rotate
+		bcf isRotating, 0 ; ya el carro no esta rotando
+		call stopTurning
+		movlw d'5' ; el carro va a entrar en medio barrido como el comienzo
+		movwf ms500_to_sweep
+DntStop	call medSeg ; tambien es el inicio del barrido
+		return
+NtRot	btfsc isEscaping, 0
+		goto Escape
+		incf ms500_to_sweep, 1 ; not escaping
+		movlw d'10' ; SWEEP_TIME
+		subwf ms500_to_sweep, 0
+		btfss STATUS, 2 ; ms500_to_sweep == 10
+		goto KpSwpng ; not yet, dont toggle, keep sweeping
+		movlw d'1'
+		xorwf toggle, 1 ; toggle = !toggle, 1 xor 1 = 0 ; 1 xor 0 = 1
+		clrf ms500_to_sweep
+		incf sweeps, 1
+		btfss sweeps, 2 ; si sweeps = 4, es decir si el carro barrio 4 veces
+		goto KpSwpng ; si sweeps no es 4, simplemente sigo en el medio del barrido
+		clrf sweeps ; si sweeps = 4 -> sweeps = 0 y el resto de lo que sigue
+		bsf isRotating, 0
+		call rotate
+KpSwpng	call medSeg
+		return
+		
+Escape	incf time, 1
 		btfsc time, 3 ; si time es 8, han pasado 4 segundos
 		goto Safe ; time = 8
 		call medSeg ; si no es 8 entonces espero el otro medio segundo
@@ -306,9 +339,13 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf TMR1H
 		clrf TMR1L
 		clrf time
+		clrf sweeps
+		clrf ms500_to_rotate
+		clrf ms500_to_sweep
+		bcf isRotating, 0
 		bcf isEscaping, 0
-		return
-		
+		return		
+
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
 		btfsc PORTB, 4 ; LEFT_SENSOR && RIGHT_SENSOR
 		btfss PORTB, 6
@@ -364,6 +401,10 @@ Nxt5	btfss PORTB, 5 ; BACK_SENSOR
 		movlw d'255' ; FULL_SPEED
 		call setSpeed ; speed = FULL_SPEED
 		call stopTurning
+		return
+		
+rotate ; funcion que hace rotar al carro
+		nop
 		return
 ;****************************************************************************************************************
 
