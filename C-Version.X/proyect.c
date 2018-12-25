@@ -51,6 +51,24 @@ volatile byte ms500_to_sweep = 5; // in the beginning the car will start in the 
 volatile byte sweeps = 0;
 volatile byte ms500_to_rotate = 0;
 
+typedef union {
+    struct {
+        unsigned                :4;
+        unsigned left_sensor    :1; //RB4
+        unsigned back_sensor    :1; //RB5
+        unsigned right_sensor   :1; //RB6
+        unsigned                :1;
+    }; // bits
+    byte portb; // bytes
+} portb_state;
+
+/* 
+ * previous_states: variable that holds the previous state of the sensors.
+ * I could also just do 'byte previous_states[2] = {0, 0}' and when adding a new state just do 'previous_states[1] = {PORTB}' for example,
+ * and compare like so 'previous_states[1] == 0x06', the problem with this is scalability, I'd have to ground every other pin of PORTB for the comparison to work.
+ */
+volatile portb_state previous_states[2];
+
 /* Configuration functions */
 inline void PWM_INIT(void);
 inline void INT_INIT(void);
@@ -67,12 +85,21 @@ void stopTurning(void);
 /* Comp functions */
 inline void rotate(void);
 void medSeg(void);
-bit assessProximity(byte distance);
+bit assessProximity(byte);
 
 /* functions used only in interruptions */
+inline void saveState(portb_state);
 inline void steppingLine(void);
+/* 
+* Because it's very unlikely that the car leaves the black line while turning off LEFT_SENSOR and RIGHT_SENSOR
+* at the same time, the car will inevitably start turning left or right at some point in the end, we don't want that,
+* therefore I make a function that checks the previous states so I make sure the car does not turn in this scenario
+*/
+bit checkScenario(void);
 
 void main(void) {
+    previous_states[0].portb = 0;
+    previous_states[1].portb = 0;
     PORTB;
     RBIF = 0; // just in case it's 1
     PWM_INIT();
@@ -236,6 +263,12 @@ void fullyDeactivateTMR1(void) {
     return;
 }
 
+inline void saveState(portb_state state) {
+    previous_states[0].portb = previous_states[1].portb;
+    previous_states[1].portb = state.portb;
+    return;
+}
+
 /* This function is subject of discussion */
 inline void steppingLine(void) {
     if(LEFT_SENSOR && RIGHT_SENSOR) {
@@ -279,17 +312,37 @@ inline void steppingLine(void) {
     return;
 }
 
+//before entering this function, it is known that all sensors are 0
+bit checkScenario(void) {
+    if(previous_states[0].portb == 0xA0) { // b'01010 0000', left_sensor and right_sensor = 1, everything else 0
+        return (previous_states[1].left_sensor || previous_states[1].right_sensor); //note: left_sensor and right_sensor will never be 1 at the same time due to the nature of the RB change interruption, so || really is just asking if either left_sensor or right_sensor is 1
+    }
+    else {
+        return 0;
+    }
+}
+
 void interrupt ISR(void){
     if(MODE) {
         /* Comp mode interruption */
         if(RBIF) {
             car_state.isEscaping = TRUE; // the car is trying to escape, this becomes FALSE after 4 seconds have passed since the sensor were 0
-            if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {
+            portb_state state;
+            state.portb = 0; // initial clear, then I assign the bits that are 1 or 0, a simple state.portb = PORTB would work but for scalability on PORTB I'm not doing it like that, some RB pins may be used in the future
+            if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {               
+                state.left_sensor = LEFT_SENSOR;
+                state.right_sensor = RIGHT_SENSOR;
+                state.back_sensor = BACK_SENSOR; 
+                saveState(state);
                 fullyDeactivateTMR1();
                 stopTurning(); // in case the car was turning before getting knocked back
                 steppingLine(); // here I check RB bits to take the proper measures
             }
             else { //here the car basically escaped the black line
+                if(checkScenario()) { // checks for this situation: [0] left and right = 1 -> [1] left or right = 1 -> [current] left, right and back = 0
+                    stopTurning();
+                }
+                saveState(state); // state.portb = 0
                 TMR1ON = 1;
                 medSeg();
                 time = 0;
