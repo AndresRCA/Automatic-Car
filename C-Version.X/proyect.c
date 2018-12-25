@@ -243,12 +243,7 @@ bit assessProximity(byte distance) {
 	while(!ECHO); // I wait for echo pin to go up
 	TMR0 = 0; // I start counting, with prescaler 128, the max value it will get is 182 (4 meters)
 	while(ECHO); // I wait for echo pin to go down
-	if(TMR0 <= distance){
-		return 1;
-	}
-	else {
-		return 0;
-	}
+	return (TMR0 <= distance);
 }
 
 /* cleans everything concerning TMR1 functionality outside RB change interruption */
