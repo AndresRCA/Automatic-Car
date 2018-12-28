@@ -41,7 +41,7 @@ typedef struct {
     unsigned isTurningLeft  :1; //only for black line mode
     unsigned    			:3;
 } CarState;
-volatile CarState car_state = {FALSE , FALSE, FALSE};
+volatile CarState car_state = {FALSE , FALSE, FALSE, FALSE, FALSE};
 
 volatile bit toggle = FALSE;
 
@@ -155,8 +155,6 @@ void main(void) {
         /* Tracking mode */
         setSpeed(FULL_SPEED);
 		turn_speed = 128;
-        car_state.isTurningRight = FALSE;
-        car_state.isTurningLeft = FALSE;
         stopTurning(); // assigns the speed to the proper motors
         while(1);
     }
