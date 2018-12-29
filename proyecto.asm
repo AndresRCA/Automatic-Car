@@ -8,7 +8,7 @@ include <P16F877A.inc>
 ;* -RB4: left                                                                        					  	  *
 ;*                                                                                  					  	  *
 ;* Ultrasound sensor:                                                               					  	  *
-;* -RB?: echo pin, este pin se pone en 0 cuando se recibe el eco del sensor        						  	  *
+;* -RB0: echo pin, este pin se pone en 0 cuando se recibe el eco del sensor        						  	  *
 ;* -RB1: Trig pin, este pin se usa para generar el pulso de 10 micro segundos para mandar una onda 		 	  *
 ;*                                                                                  					  	  *
 ;* Mode port:                                                                      					  		  *
@@ -174,7 +174,15 @@ CompMode
 		bsf INTCON, 3 ; RB Port Change Interrupt Enable bit RB<7:4>
 		bsf INTCON, 6 ; int perifericos
 		bsf PIE1, 0 ; habilito la interrupcion del overflow del TMR1
-		;******************************************    
+		;******************************************    		
+		
+		;************* Configuracion TMR0 ******************************
+		bcf OPTION_REG, 0 ; prescaler 128 para cubrir la distancia maxima de 4 metros (TMR0 = 182) y evitar overflows
+		bcf OPTION_REG, 5 ; el tmr0 es temporizador
+		bcf OPTION_REG, 3 ; prescaler asignado a tmr0
+		;***************************************************************
+		
+		bcf STATUS, 5
 		
 		;************* Configuracion TMR1 *********
 		; configuro aqui el prescaler de T1CON (bits 5-4 => 11 = 1:8, 10 = 1:4, 01 = 1:2, 00 = 1:1)
@@ -184,9 +192,8 @@ CompMode
 		clrf TMR1H
 		clrf TMR1L
 		; ** recuerda prender el TMR1 en algun lado "bsf T1CON, 0" **
-		;******************************************		
+		;******************************************
 		
-		bcf STATUS, 5
 		bsf T2CON, 1 ; configuro el prescaler 16 de TMR2, 00 = 1, 01 = 4, 1X = 16
 		bsf T2CON, 2 ; prendo el TMR2
 		bsf CCP1CON, 3 ; configuro el modulo CCP1 como PWM (11xx de bits 3-0)
@@ -214,13 +221,30 @@ CompMode
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
+		bsf T1CON, 0 ; prendo el tmr1
+		call medSeg  ; los 500ms iniciales al barrir
 CMain 	btfsc isEscaping, 0 ; si el carro esta escapando, no hacer nada
 		goto CMain
-		;************ ultra sound function *************
-		; ultra sound decision making goes here
+		;************ ultra sound block ****************
+		call assessProximity ; si activateUltraSound retorna C = 0, si esta en proximidad
+		btfsc STATUS, 0 ; verifico CFLAG de la operacion hecha en assessProximity (C = 0 significa que si esta en proximidad)
+		goto NtClose ; not close
+		bcf isRotating, 0 ; el carro detecto algo, borra todo sobre el movimiento usual
+		clrf ms500_to_rotate
+		clrf sweeps
+		movlw d'5'
+		movwf ms500_to_sweep ; el carro hara medio barrido como el inicio
+		btfsc isEscaping, 0 ; en caso de que ocurra una interrupcion despues de assessProximity y no despues del inicio de CMain
+		goto CMain
+		movlw d'255'
+		call setSpeed
+		call stopTurning
+		call medSeg ; esto va a interrumpir solo cuando assessProximity ha fallado 20 veces seguidas (25ms * 20 = 500ms)
+		goto CMain
 		;***********************************************
 NtClose	btfsc isRotating, 0 ; si el carro esta rotando, dejar volver a medir la distancia al inicio del CMain
 		goto CMain
+		; aqui ocurre el barrido
 		movlw d'64' ; SEEKING_SPEED
 		call setSpeed
 		movlw d'32' ; SEEKING_SPEED/2
@@ -333,6 +357,29 @@ stopTurning ; ambos lados tienen la misma velocidad
 		movf speed, 0
 		movwf CCPR1L
 		movwf CCPR2L
+		return
+
+assessProximity ; funcion que inicia el sensor y retorna una respuesta (valor de Carry)
+		bsf PORTB, 1 ; TRIG = 1
+		call delay10us
+		bcf PORTB, 1
+WtEcho	btfss PORTB, 0
+		goto WtEcho ; wait echo
+		clrf TMR0 ; el tmr0 va a empezar a contar desde 0
+NotYet	btfsc PORTB, 0 ; espero a que el pin de eco se baje, que es cuando recibe la respuesta
+		goto NotYet
+		call TMR0_OFF
+		movlw d'6' ; distancia cm = (X*Prescaler/2*29,1) => 10 cm = (X*128/2*29,1) => X = 4,54 = 5 => distancia cm = (5*128/2*29,1) = 10,99 = 11
+		subwf TMR0, 0 ; si TMR0 = 5 -> 5 - 6 = -1 -> C = 0, si esta en proximidad (11 cm)
+		return
+
+delay10us
+		nop ; aqui hay 6 nops, el call y return cuentan como 4 micro segundos
+		nop
+		nop
+		nop
+		nop
+		nop
 		return
 
 fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren tanto cosas inesperadas como momentos de seguridad al salirse de la linea negra
