@@ -114,6 +114,7 @@ void main(void) {
     
     if(MODE) {
         /* Comp mode */
+		TMR1ON = 1;
         medSeg(); // the initial 500ms when sweeping
         while(1) {
         	if(car_state.isEscaping) continue; // when escaping I don't want to do anything
