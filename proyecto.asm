@@ -47,6 +47,9 @@ isRotating EQU 29h
 ms500_to_sweep EQU 2Ah
 sweeps EQU 2Bh
 ms500_to_rotate EQU 2Ch
+previous_state0 EQU 2Dh
+previous_state1 EQU 2Eh
+current_state EQU 2Fh
 ;***************************************************************
 
 ;****************************************************************************************************************
@@ -218,6 +221,8 @@ CompMode
 		movwf ms500_to_sweep
 		clrf sweeps
 		clrf ms500_to_rotate
+		clrf previous_state0
+		clrf previous_state1
 ;****************************************************************************************************************
 
 ;**************************************** Main Comp Mode ********************************************************
@@ -260,17 +265,29 @@ Lft		call turnLeft
 ;************************************** Funciones INT Comp Mode *************************************************
 RBChangeInt ; tomo las medidas necesarias para redirigir el auto
 		bsf isEscaping, 0
+		clrf current_state ; cero inicial del estado actual
 		btfsc PORTB, 4
 		goto StpLine
 		btfsc PORTB, 6
 		goto StpLine
 		btfsc PORTB, 5
 		goto StpLine
+		call checkScenario ; verifica un escenario espesifico, Z = 1 significa que si se dio el escenario
+		btfsc STATUS, 2 ; verifico el valor de Z, si es 0 entonces el escenario no se cumplio
+		call stopTurning ; el escenario resulto ser cierto
+		call saveState ; en este bloque current_state se queda en 0
 		bsf T1CON, 0 ; todos los sensores estan en 0, por lo tanto esta escapando
 		call medSeg
 		clrf time ; limpio el timer para indicar el comienzo de la salida de la linea negra
 		goto RBEnd
-StpLine	call fullyDeactivateTMR1 ; limpio todo los procesos que involucren el tmr1 fuera de la interrupcion RB
+StpLine	btfsc PORTB, 4 ; le asigno los bits que estan encendidos a current_state
+		bsf current_state, 4
+		btfsc PORTB, 5
+		bsf current_state, 5
+		btfsc PORTB, 6
+		bsf current_state, 6
+		call saveState ; guardo el nuevo estado		
+		call fullyDeactivateTMR1 ; limpio todo los procesos que involucren el tmr1 fuera de la interrupcion RB
 		call stopTurning ; detengo lo que estaba haciendo antes
 		call steppingLine ; aqui verifico los bits de RB para tomar las medidas correspondientes
 RBEnd	bcf INTCON, 0 ; apago la bandera al final cuando PORTB vuelve a su estado original (00000000) asumiendo que los sensores al detectar la linea negra se pongan en 1
@@ -392,6 +409,26 @@ fullyDeactivateTMR1 ; nombre bastante explicatorio, esto se llama cuando ocurren
 		clrf ms500_to_sweep
 		bcf isRotating, 0
 		return		
+
+saveState ; funcion que guarda los nuevos estados
+		movf previous_state1, 0
+		movwf previous_state0 ; previous_state0 = previous_state1
+		movf current_state, 0
+		movwf previous_state1 ; previous_state1 = current_state
+		return
+		
+checkScenario
+		movlw b'010100000' ; sensores laterales encendidos
+		subwf previous_state0, 0
+		btfss STATUS, 2
+		return ; retornara Z = 0
+		btfsc previous_state1, 4 ; sensor de la izquierda
+		return ; retornara Z = 1
+		btfsc previous_state1, 6 ; sensor de la derecha
+		return ; retornara Z = 1
+		bcf STATUS, 2
+		return ; retornara Z = 0
+		
 
 steppingLine ; funcion que se llama cuando el carro toca la linea en modo competitivo
 		btfsc PORTB, 4 ; LEFT_SENSOR && RIGHT_SENSOR
