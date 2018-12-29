@@ -235,7 +235,7 @@ inline void rotate(void) {
 }
 
 void medSeg(void) {
-    TMR1 = 56331; // after setting TMR1, I wait for an interruption
+    TMR1 = 3036; // after setting TMR1, I wait for an interruption
     return;
 }
 
