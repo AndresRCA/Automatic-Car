@@ -15,6 +15,11 @@
 #define FALSE 0
 
 #define MODE RD0 // 1 = comp, 0 = tracking
+#define isReverse RD1
+#define isEscaping RD2
+#define isRotating RD3
+#define isTurningRight RD4
+#define isTurningLeft RD5
 
 /* speed constants for variable speed */
 #define FULL_SPEED 255
@@ -26,22 +31,12 @@
 #define RIGHT_SENSOR RB6
 #define BACK_SENSOR RB5
 
-#define ECHO RB2 //not decided yet
+#define ECHO RB0 //not decided yet
 #define TRIG RB1
 #define PROXIMITY_DISTANCE 5 // 5 => 11 cm with TMR0 prescaler = 128
 
 #define SWEEP_TIME 10 // 5 seconds for a full sweep => 10 because tmr1 counts up to 500ms
 #define ROTATING_TIME 24 // 12 seconds for a full 360 rotation, this depends on the car itself
-
-typedef struct {
-    unsigned isReverse		:1;
-    unsigned isEscaping 	:1; // if it's not escaping, it's seeking a new target
-    unsigned isRotating 	:1;
-    unsigned isTurningRight :1; //only for black line mode
-    unsigned isTurningLeft  :1; //only for black line mode
-    unsigned    			:3;
-} CarState;
-volatile CarState car_state = {FALSE , FALSE, FALSE, FALSE, FALSE};
 
 volatile bit toggle = FALSE;
 
@@ -100,6 +95,12 @@ inline void steppingLine(void);
 bit checkScenario(void);
 
 void main(void) {
+    TRISD = 0x01;
+    isReverse = 0;
+    isEscaping = 0;
+    isRotating = 0;
+    isTurningRight = 0;
+    isTurningLeft = 0;
     previous_states[0].portb = 0;
     previous_states[1].portb = 0;
     PORTB;
@@ -117,28 +118,25 @@ void main(void) {
 		TMR1ON = 1;
         medSeg(); // the initial 500ms when sweeping
         while(1) {
-        	if(car_state.isEscaping) continue; // when escaping I don't want to do anything
-            if(assessProximity(PROXIMITY_DISTANCE)) {
-                /* a car is near */
-               
-                /* reset everything about sweeping and rotating (I don't care about the direction that comes from toggle) */
-                car_state.isRotating = FALSE;
+        	if(isEscaping) continue; // when escaping I don't want to do anything
+            /*if(assessProximity(PROXIMITY_DISTANCE)) {                
+                               
+                isRotating = FALSE;
                 ms500_to_rotate = 0;
                 sweeps = 0;
                 ms500_to_sweep = 5; //the car will make half a sweep like at the beginning
 				
                 // assume an RB change interruption (a sensor goes high, this is the only way the interruption occurs inside this block) occurs while inside this block, the car would go forward, therefore ignoring the previous instruction that came from steppingLine(), we don't want that
-                if(car_state.isEscaping) continue; //just in case it happens after the time it takes to measure the distance, it's like a double check
+                if(isEscaping) continue; //just in case it happens after the time it takes to measure the distance, it's like a double check
                 setSpeed(FULL_SPEED);
                 stopTurning();
-                
-                /* this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms). */
+                                
                 medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
                 
-            }
+            }*/
             else {
                 /* no car detected */
-                if(car_state.isRotating) continue; // when rotating don't do anything except what made isRotating = TRUE
+                if(isRotating) continue; // when rotating don't do anything except what made isRotating = TRUE
                 else {
                     setSpeed(SEEKING_SPEED);
                     turn_speed = 32; // SEEKING_SPEED/2
@@ -212,18 +210,22 @@ void setSpeed(byte spd) {
 }*/
 
 void turnRight(void) {
+    isTurningRight = TRUE;
     CCPR1L = speed;
     CCPR2L = turn_speed;
     return;
 }
 
 void turnLeft(void) {
+    isTurningLeft = TRUE;
     CCPR2L = speed;
     CCPR1L = turn_speed;
     return;
 }
 
 void stopTurning(void) {
+    isTurningRight = FALSE;
+    isTurningLeft = FALSE;
     CCPR1L = speed;
     CCPR2L = speed;
     return;
@@ -257,7 +259,7 @@ void fullyDeactivateTMR1(void) {
     sweeps = 0;
     ms500_to_rotate = 0;
     ms500_to_sweep = 0;
-    car_state.isRotating = FALSE;
+    isRotating = FALSE;
     return;
 }
 
@@ -270,40 +272,40 @@ inline void saveState(portb_state state) {
 /* This function is subject of discussion */
 inline void steppingLine(void) {
     if(LEFT_SENSOR && RIGHT_SENSOR) {
-        car_state.isReverse = TRUE;
+        isReverse = TRUE;
         setSpeed(FULL_SPEED);
         stopTurning();
     }
     else if(LEFT_SENSOR && BACK_SENSOR) {
-        car_state.isReverse = FALSE;
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
         //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR && BACK_SENSOR) {
-        car_state.isReverse = FALSE;
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
         //setTurnSpeed();
         turnLeft();
     }
     else if(LEFT_SENSOR) {
-        car_state.isReverse = TRUE;
+        isReverse = TRUE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
         //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR) {
-        car_state.isReverse = TRUE;
+        isReverse = TRUE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
         //setTurnSpeed();
         turnLeft();
     }
     else if(BACK_SENSOR) { // this could just be an else but I'm leaving it like this just in case
-        car_state.isReverse = FALSE;
+        isReverse = FALSE;
         setSpeed(FULL_SPEED);
         stopTurning();
     }
@@ -324,7 +326,7 @@ void interrupt ISR(void){
     if(MODE) {
         /* Comp mode interruption */
         if(RBIF) {
-            car_state.isEscaping = TRUE; // the car is trying to escape, this becomes FALSE after 4 seconds have passed since the sensor were 0
+            isEscaping = TRUE; // the car is trying to escape, this becomes FALSE after 4 seconds have passed since the sensor were 0
             portb_state state;
             state.portb = 0; // initial clear, then I assign the bits that are 1 or 0, a simple state.portb = PORTB would work but for scalability on PORTB I'm not doing it like that, some RB pins may be used in the future
             if(LEFT_SENSOR || RIGHT_SENSOR || BACK_SENSOR) {               
@@ -351,22 +353,22 @@ void interrupt ISR(void){
         
         //TMR1 interruption
         TMR1IF = 0;
-        if(car_state.isEscaping) {
+        if(isEscaping) {
             /* do the escaping timer function */
             time++;
             if(time == 8) { // if timer = 8, then 4 seconds have passed
                 // here the car does its thing
                 time = 0;
-                car_state.isReverse = FALSE; //In case the car was going in reverse
-                car_state.isEscaping = FALSE; // this condition is important for the main function
+                isReverse = FALSE; //In case the car was going in reverse
+                isEscaping = FALSE; // this condition is important for the main function
             }
             medSeg(); // either I keep counting or start timing the sweeping mode
         }
-        else if(car_state.isRotating){
+        else if(isRotating){
             ms500_to_rotate++;
             if(ms500_to_rotate == ROTATING_TIME) {
                 ms500_to_rotate = 0;
-                car_state.isRotating = FALSE;
+                isRotating = FALSE;
                 stopTurning();
                 ms500_to_sweep = 5; //The car will sweep like at the start
             }
@@ -381,7 +383,7 @@ void interrupt ISR(void){
                 sweeps++;
                 if(sweeps == 4) { //assume the car makes its sweeping motion 4 times before rotating 360 degrees
                     sweeps = 0;
-                    car_state.isRotating = TRUE;
+                    isRotating = TRUE;
                     rotate();
                 }
             }
@@ -392,34 +394,34 @@ void interrupt ISR(void){
     }
     /* Tracking mode interruption */
     if(RIGHT_SENSOR && LEFT_SENSOR) { //it could happen...
-        car_state.isTurningRight = FALSE;
-        car_state.isTurningLeft = FALSE;
+        isTurningRight = FALSE;
+        isTurningLeft = FALSE;
         stopTurning();
     }   
     // there are two scenarios here:
-    else if(car_state.isTurningRight && !RIGHT_SENSOR && !LEFT_SENSOR) { // 1. the car was turning softly to the right but both sensors derailed, therefore I turn harder
+    else if(isTurningRight && !RIGHT_SENSOR && !LEFT_SENSOR) { // 1. the car was turning softly to the right but both sensors derailed, therefore I turn harder
         // turn harder
         turn_speed = 0;
         turnRight();
     }
-    else if(car_state.isTurningLeft && !RIGHT_SENSOR && !LEFT_SENSOR) { // 2. the car was turning softly to the left but both sensors derailed, therefore I turn harder
+    else if(isTurningLeft && !RIGHT_SENSOR && !LEFT_SENSOR) { // 2. the car was turning softly to the left but both sensors derailed, therefore I turn harder
         // turn harder
         turn_speed = 0;
         turnLeft();
     }
     else if(RIGHT_SENSOR) {
-        if(!car_state.isTurningRight) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningRight is TRUE in this scenario)
-        car_state.isTurningRight = TRUE;
+        if(!isTurningRight) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningRight is TRUE in this scenario)
+        isTurningRight = TRUE;
         turnRight();
     }
     else if(LEFT_SENSOR) {
-        if(!car_state.isTurningLeft) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningLeft is TRUE in this scenario)
-        car_state.isTurningLeft = TRUE;
+        if(!isTurningLeft) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningLeft is TRUE in this scenario)
+        isTurningLeft = TRUE;
         turnLeft();
     }
     else { // RIGHT_SENSOR || LEFT_SENSOR = FALSE
-        car_state.isTurningRight = FALSE;
-        car_state.isTurningLeft = FALSE;
+        isTurningRight = FALSE;
+        isTurningLeft = FALSE;
         stopTurning();
     }
     RBIF = 0;
