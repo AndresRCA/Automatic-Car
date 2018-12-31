@@ -395,7 +395,17 @@ void interrupt ISR(void){
         car_state.isTurningRight = FALSE;
         car_state.isTurningLeft = FALSE;
         stopTurning();
-    }   
+    }
+	/*
+     *  there is a flaw here, this scenario can happen both when the car is on the correct path or when it's off path, the solution for this could be checking if the back sensor is 1, but we're risking that the car completely leaves the black line,
+     *  something like this:
+     *  if(BACK_SENSOR && !RIGHT_SENSOR && !LEFT_SENSOR) {
+     *      stopTurning();
+     *  }
+     *  else if(!BACK_SENSOR && !RIGHT_SENSOR && !LEFT_SENSOR) {
+     *      //turn harder
+     *  }
+     */
     // there are two scenarios here:
     else if(car_state.isTurningRight && !RIGHT_SENSOR && !LEFT_SENSOR) { // 1. the car was turning softly to the right but both sensors derailed, therefore I turn harder
         // turn harder
