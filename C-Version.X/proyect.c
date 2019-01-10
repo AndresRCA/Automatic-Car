@@ -48,11 +48,9 @@ typedef struct {
     unsigned isReverse		:1;
     unsigned isEscaping 	:1; // if it's not escaping, it's seeking a new target
     unsigned isRotating 	:1;
-    unsigned isTurningRight :1; //only for black line mode
-    unsigned isTurningLeft  :1; //only for black line mode
-    unsigned    			:3;
+    unsigned    			:5;
 } CarState;
-volatile CarState car_state = {FALSE , FALSE, FALSE, FALSE, FALSE};
+volatile CarState car_state = {FALSE , FALSE, FALSE};
 
 volatile bit toggle = FALSE;
 
@@ -170,8 +168,7 @@ void main(void) {
     }
     else {
         /* Tracking mode */
-        setSpeed(FULL_SPEED);
-		turn_speed = 128;
+        setSpeed(FULL_SPEED);		
         stopTurning(); // assigns the speed to the proper motors
         while(1);
     }
@@ -258,13 +255,16 @@ void stopTurning(void) {
 inline void rotateRight(void) {
     GEAR1 = 0;
     GEAR2 = 1;
-    //left wheel going full forward + right wheel going full reverse, I guess
+    CCPR1L = speed; // going full forward
+    CCPR2L = speed; // going full reverse
     return;
 }
 
 inline void rotateLeft(void) {
     GEAR1 = 1;
     GEAR2 = 1;
+    CCPR1L = speed; // going full reverse
+    CCPR2L = speed; // going full forward
     return;
 }
 
@@ -426,44 +426,15 @@ void interrupt ISR(void){
     }
     /* Tracking mode interruption */
     if(RIGHT_SENSOR && LEFT_SENSOR) { //it could happen...
-        car_state.isTurningRight = FALSE;
-        car_state.isTurningLeft = FALSE;
         stopTurning();
     }
-	/*
-     *  there is a flaw here, this scenario can happen both when the car is on the correct path or when it's off path, the solution for this could be checking if the back sensor is 1, but we're risking that the car completely leaves the black line,
-     *  something like this:
-     *  if(BACK_SENSOR && !RIGHT_SENSOR && !LEFT_SENSOR) {
-     *      stopTurning();
-     *  }
-     *  else if(!BACK_SENSOR && !RIGHT_SENSOR && !LEFT_SENSOR) {
-     *      //turn harder
-     *  }
-     */
-    // there are two scenarios here:
-    else if(car_state.isTurningRight && !RIGHT_SENSOR && !LEFT_SENSOR) { // 1. the car was turning softly to the right but both sensors derailed, therefore I turn harder
-        // turn harder
-        turn_speed = 0;
-        turnRight();
-    }
-    else if(car_state.isTurningLeft && !RIGHT_SENSOR && !LEFT_SENSOR) { // 2. the car was turning softly to the left but both sensors derailed, therefore I turn harder
-        // turn harder
-        turn_speed = 0;
-        turnLeft();
+    else if(LEFT_SENSOR) {
+        rotateLeft();
     }
     else if(RIGHT_SENSOR) {
-        if(!car_state.isTurningRight) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningRight is TRUE in this scenario)
-        car_state.isTurningRight = TRUE;
-        turnRight();
+        rotateRight();
     }
-    else if(LEFT_SENSOR) {
-        if(!car_state.isTurningLeft) turn_speed = 128; // if the car wasn't turning already, turn softly, otherwise I gotta make that sharp turn possible! (it is implied that turn_speed is 0 if isTurningLeft is TRUE in this scenario)
-        car_state.isTurningLeft = TRUE;
-        turnLeft();
-    }
-    else { // RIGHT_SENSOR || LEFT_SENSOR = FALSE
-        car_state.isTurningRight = FALSE;
-        car_state.isTurningLeft = FALSE;
+    else { // RIGHT_SENSOR || LEFT_SENSOR = false        
         stopTurning();
     }
     RBIF = 0;
