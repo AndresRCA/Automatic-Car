@@ -88,9 +88,10 @@ inline void TMR0_INIT(void);
 
 /* Main functions */
 void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
+
 // this is done to multiplex the pwm accordingly
 void adjustTrayectory(void);
-/*void setTurnSpeed(void); //currently all it does is set it to speed/2*/
+
 void turnRight(void);
 void turnLeft(void);
 void stopTurning(void);
@@ -219,12 +220,6 @@ void setSpeed(byte spd) {
     return;
 }
 
-/*void setTurnSpeed(void) {
-	turn_speed = speed/2; //could change depending of tests
-	return
-}*/
-
-/* this is done to multiplex the pwm accordingly */
 void adjustTrayectory(void) {
     GEAR2 = 0;
     GEAR1 = car_state.isReverse; //check mux controls
@@ -312,28 +307,24 @@ inline void steppingLine(void) {
         car_state.isReverse = FALSE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
-        //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR && BACK_SENSOR) {
         car_state.isReverse = FALSE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
-        //setTurnSpeed();
         turnLeft();
     }
     else if(LEFT_SENSOR) {
         car_state.isReverse = TRUE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
-        //setTurnSpeed();
         turnRight();
     }
     else if(RIGHT_SENSOR) {
         car_state.isReverse = TRUE;
         setSpeed(FULL_SPEED);
 		turn_speed = 127; //FULL_SPEED/2
-        //setTurnSpeed();
         turnLeft();
     }
     else if(BACK_SENSOR) { // this could just be an else but I'm leaving it like this just in case
