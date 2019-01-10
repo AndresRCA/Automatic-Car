@@ -16,6 +16,17 @@
 
 #define MODE RD0 // 1 = comp, 0 = tracking
 
+/*
+ * mux control:
+ * GEAR2 | GEAR1 | action
+ * 0       0       forward
+ * 0       1       reverse
+ * 1       0       rotate right
+ * 1       1       rotate left
+ */
+#define GEAR1 RD1
+#define GEAR2 RD2
+
 /* speed constants for variable speed */
 #define FULL_SPEED 255
 #define MED_SPEED 128
@@ -79,13 +90,16 @@ inline void TMR0_INIT(void);
 
 /* Main functions */
 void setSpeed(byte); // accepts FULL_SPEED, MED_SPEED and SEEKING_SPEED
+// this is done to multiplex the pwm accordingly
+void adjustTrayectory(void);
 /*void setTurnSpeed(void); //currently all it does is set it to speed/2*/
 void turnRight(void);
 void turnLeft(void);
 void stopTurning(void);
 
 /* Comp functions */
-inline void rotate(void);
+inline void rotateRight(void);
+inline void rotateLeft(void);
 void medSeg(void);
 bit assessProximity(byte);
 
@@ -111,6 +125,8 @@ void main(void) {
         TMR0_INIT();
     }
     TRIG = 0; // in case it's on
+    GEAR1 = 0;
+    GEAR2 = 0;
     
     if(MODE) {
         /* Comp mode */
@@ -211,26 +227,44 @@ void setSpeed(byte spd) {
 	return
 }*/
 
+/* this is done to multiplex the pwm accordingly */
+void adjustTrayectory(void) {
+    GEAR2 = 0;
+    GEAR1 = car_state.isReverse; //check mux controls
+    return;
+}
+
 void turnRight(void) {
+    adjustTrayectory();
     CCPR1L = speed;
     CCPR2L = turn_speed;
     return;
 }
 
 void turnLeft(void) {
+    adjustTrayectory();
     CCPR2L = speed;
     CCPR1L = turn_speed;
     return;
 }
 
 void stopTurning(void) {
+    adjustTrayectory();
     CCPR1L = speed;
     CCPR2L = speed;
     return;
 }
 
-inline void rotate(void) {
+inline void rotateRight(void) {
+    GEAR1 = 0;
+    GEAR2 = 1;
     //left wheel going full forward + right wheel going full reverse, I guess
+    return;
+}
+
+inline void rotateLeft(void) {
+    GEAR1 = 1;
+    GEAR2 = 1;
     return;
 }
 
@@ -382,7 +416,7 @@ void interrupt ISR(void){
                 if(sweeps == 4) { //assume the car makes its sweeping motion 4 times before rotating 360 degrees
                     sweeps = 0;
                     car_state.isRotating = TRUE;
-                    rotate();
+                    rotateRight();
                 }
             }
             medSeg(); // either I keep counting or I start counting the time it takes to rotate
