@@ -97,8 +97,8 @@ void turnLeft(void);
 void stopTurning(void);
 
 /* Comp functions */
-inline void rotateRight(void);
-inline void rotateLeft(void);
+void rotateRight(void);
+void rotateLeft(void);
 void medSeg(void);
 bit assessProximity(byte);
 
@@ -133,10 +133,10 @@ void main(void) {
         medSeg(); // the initial 500ms when sweeping
         while(1) {
         	if(car_state.isEscaping) continue; // when escaping I don't want to do anything
-            if(assessProximity(PROXIMITY_DISTANCE)) {
-                /* a car is near */
+            /*if(assessProximity(PROXIMITY_DISTANCE)) {
+                // a car is near
                
-                /* reset everything about sweeping and rotating (I don't care about the direction that comes from toggle) */
+                // reset everything about sweeping and rotating (I don't care about the direction that comes from toggle)
                 car_state.isRotating = FALSE;
                 ms500_to_rotate = 0;
                 sweeps = 0;
@@ -147,16 +147,17 @@ void main(void) {
                 setSpeed(FULL_SPEED);
                 stopTurning();
                 
-                /* this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms). */
+                // this will interrupt only when assessProximity has failed 20 times in a row (25ms * 20 = 500ms).
                 medSeg(); // this is for when the car stops chasing the car, think more about the consequences of this
                 
-            }
+            }*/
             else {
                 /* no car detected */
                 if(car_state.isRotating) continue; // when rotating don't do anything except what made isRotating = TRUE
                 else {
                     setSpeed(SEEKING_SPEED);
                     turn_speed = 32; // SEEKING_SPEED/2
+                    if(car_state.isEscaping) continue; // just in case
                     if(toggle) { //toggle alternates every 5 seconds, making the car move like a snake
                         turnRight();
                     }
@@ -169,7 +170,7 @@ void main(void) {
     }
     else {
         /* Tracking mode */
-        setSpeed(FULL_SPEED);		
+        setSpeed(FULL_SPEED);
         stopTurning(); // assigns the speed to the proper motors
         while(1);
     }
@@ -247,7 +248,7 @@ void stopTurning(void) {
     return;
 }
 
-inline void rotateRight(void) {
+void rotateRight(void) {
     GEAR1 = 0;
     GEAR2 = 1;
     CCPR1L = speed; // going full forward
@@ -255,7 +256,7 @@ inline void rotateRight(void) {
     return;
 }
 
-inline void rotateLeft(void) {
+void rotateLeft(void) {
     GEAR1 = 1;
     GEAR2 = 1;
     CCPR1L = speed; // going full reverse
