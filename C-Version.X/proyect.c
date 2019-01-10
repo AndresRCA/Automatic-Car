@@ -346,7 +346,7 @@ inline void steppingLine(void) {
 
 //before entering this function, it is known that all sensors are 0
 bit checkScenario(void) {
-    if(previous_states[0].portb == 0xA0) { // b'01010 0000', left_sensor and right_sensor = 1, everything else 0
+    if(previous_states[0].portb == 0x50) { // b'0101 0000', left_sensor and right_sensor = 1, everything else 0
         return (previous_states[1].left_sensor || previous_states[1].right_sensor); //note: left_sensor and right_sensor will never be 1 at the same time due to the nature of the RB change interruption, so || really is just asking if either left_sensor or right_sensor is 1
     }
     else {
